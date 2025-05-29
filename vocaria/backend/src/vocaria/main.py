@@ -91,6 +91,59 @@ async def pydantic_validation_exception_handler(request: Request, exc: Validatio
 # Include API routers
 app.include_router(api_router, prefix="/api/v1")
 
+# Login endpoint
+@app.post("/api/users/login")
+async def login_user(
+    credentials: dict,
+    db: AsyncSession = Depends(get_db)
+):
+    """Login endpoint for user authentication.
+    
+    Args:
+        credentials: Dictionary containing email and password
+        db: Database session
+        
+    Returns:
+        dict: User data
+        
+    Raises:
+        HTTPException: If credentials are invalid or error occurs
+    """
+    try:
+        email = credentials.get("email")
+        password = credentials.get("password")
+        
+        if not email or not password:
+            raise HTTPException(status_code=400, detail="Email y password requeridos")
+        
+        # Buscar usuario por email
+        result = await db.execute(
+            select(User).where(User.email == email)
+        )
+        user_result = result.first()
+        
+        if not user_result:
+            raise HTTPException(status_code=401, detail="Usuario no encontrado")
+        
+        user = user_result[0]
+        
+        # Verificar password
+        if user.hashed_password != hash_password(password):
+            raise HTTPException(status_code=401, detail="Password incorrecto")
+        
+        return {
+            "id": user.id,
+            "email": user.email,
+            "username": user.email,  # Using email as username
+            "full_name": user.full_name,
+            "is_active": user.is_active
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error en login: {str(e)}")
+
 # Health check endpoint
 @app.get("/health")
 async def health_check():
