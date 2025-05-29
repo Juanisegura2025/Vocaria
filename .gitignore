@@ -1,0 +1,36 @@
+# Entorno virtual
+venv/
+env/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+	*.db
+*.sqlite
+*.sqlite3
+
+# Variables de entorno
+.env
+.env.local
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node modules (para el frontend)
+node_modules/
+dist/
+build/
