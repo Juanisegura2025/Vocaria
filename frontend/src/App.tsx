@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { BackendConnectionTest } from './components/BackendConnectionTest';
 
 // Create a query client
 const queryClient = new QueryClient();
@@ -52,6 +53,9 @@ function Home() {
                 <li>• Connect to backend API</li>
               </ul>
             </div>
+            
+            {/* Backend Connection Test Component */}
+            <BackendConnectionTest />
           </div>
         </div>
       </div>

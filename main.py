@@ -173,13 +173,6 @@ async def send_message(conversation_id: int, message: MessageCreate, db: AsyncSe
     }
 
 @app.get("/api/conversations/{conversation_id}/messages")
-async def get_messages(conversation_id: int, db: AsyncSession = Depends(get_db)):
-    return {
-        "message": "✅ Endpoint obtener mensajes funcionando",
-        "conversation_id": conversation_id,
-        "note": "🔧 Lista completa próximamente"
-    }
-    @app.post("/api/users/login")
 async def login_user(credentials: dict, db: AsyncSession = Depends(get_db)):
     try:
         email = credentials.get("email")
@@ -206,7 +199,7 @@ async def login_user(credentials: dict, db: AsyncSession = Depends(get_db)):
         return {
             "id": user.id,
             "email": user.email,
-            "username": user.username,
+            "username": user.email,  # Using email as username
             "full_name": user.username,
             "is_active": user.is_active
         }
@@ -214,7 +207,47 @@ async def login_user(credentials: dict, db: AsyncSession = Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error en login: {str(e)}")    
+        raise HTTPException(status_code=500, detail=f"Error en login: {str(e)}")
+
+# Endpoints de conversaciones
+@app.get("/api/conversations")
+async def get_conversations(db: AsyncSession = Depends(get_db)):
+    return {
+        "message": "✅ Endpoint de conversaciones funcionando",
+        "note": "🔧 Lista completa próximamente"
+    }
+
+@app.post("/api/conversations")
+async def create_conversation(conversation: ConversationCreate, db: AsyncSession = Depends(get_db)):
+    return {
+        "message": "✅ Endpoint crear conversación funcionando",
+        "received_data": {
+            "title": conversation.title or "Nueva conversación"
+        },
+        "note": "🔧 Implementación completa próximamente"
+    }
+
+# Endpoints de mensajes
+@app.post("/api/conversations/{conversation_id}/messages")
+async def send_message(conversation_id: int, message: MessageCreate, db: AsyncSession = Depends(get_db)):
+    return {
+        "message": "✅ Endpoint enviar mensaje funcionando",
+        "conversation_id": conversation_id,
+        "received_data": {
+            "content": message.content,
+            "is_user": message.is_user,
+            "content_length": len(message.content)
+        },
+        "note": "🔧 Implementación completa próximamente"
+    }
+
+@app.get("/api/conversations/{conversation_id}/messages")
+async def get_messages(conversation_id: int, db: AsyncSession = Depends(get_db)):
+    return {
+        "message": "✅ Endpoint obtener mensajes funcionando",
+        "conversation_id": conversation_id,
+        "note": "🔧 Lista completa próximamente"
+    }
 
 if __name__ == "__main__":
     import uvicorn
