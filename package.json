@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "@tanstack/react-query": "^5.79.0",
+    "antd": "^5.25.3",
+    "axios": "^1.9.0",
+    "dayjs": "^1.11.13",
+    "lucide-react": "^0.511.0",
+    "recharts": "^2.15.3"
+  }
+}

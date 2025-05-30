@@ -1,102 +1,117 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { BackendConnectionTest } from './components/BackendConnectionTest';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ConfigProvider } from 'antd';
+import esES from 'antd/locale/es_ES';
+import dayjs from 'dayjs';
+import 'dayjs/locale/es';
+
+declare module 'dayjs' {
+  interface Dayjs {}
+}
+
+// Import pages
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import DashboardPage from './features/dashboard/DashboardPage';
+import ToursPage from './features/tours/ToursPage';
+import LeadsPage from './features/leads/LeadsPage';
+import TranscriptsPage from './features/transcripts/TranscriptsPage';
+import AnalyticsPage from './features/analytics/AnalyticsPage';
+import SettingsPage from './features/settings/SettingsPage';
+import { MainLayout } from './layouts/MainLayout';
+
+// Set dayjs locale
+dayjs.locale('es');
 
 // Create a query client
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
-// Simple Home component
-function Home() {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-16">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            🎤 Vocaria Frontend
-          </h1>
-          <p className="text-xl text-gray-600 mb-8">
-            Voice-first virtual showing assistant
-          </p>
-          <div className="bg-white rounded-lg shadow-lg p-6 max-w-2xl mx-auto">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4">
-              ✅ Frontend is working!
-            </h2>
-            <div className="space-y-3 text-left">
-              <div className="flex items-center space-x-2">
-                <span className="text-green-500">✓</span>
-                <span>React 18 loaded</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-green-500">✓</span>
-                <span>Vite dev server running</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-green-500">✓</span>
-                <span>Tailwind CSS working</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-green-500">✓</span>
-                <span>React Query configured</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-green-500">✓</span>
-                <span>TypeScript compilation successful</span>
-              </div>
-            </div>
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-              <h3 className="font-semibold text-blue-800 mb-2">Next Steps:</h3>
-              <ul className="text-sm text-blue-700 space-y-1">
-                <li>• Create authentication components</li>
-                <li>• Build admin dashboard</li>
-                <li>• Implement widget components</li>
-                <li>• Connect to backend API</li>
-              </ul>
-            </div>
-            
-            {/* Backend Connection Test Component */}
-            <BackendConnectionTest />
-          </div>
-        </div>
+// Auth wrapper component
+const ProtectedRoute = () => {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
-// Simple Dashboard component
-function Dashboard() {
-  return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">Dashboard</h1>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-2">Tours</h2>
-            <p className="text-gray-600">Manage your property tours</p>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-2">Leads</h2>
-            <p className="text-gray-600">Track captured leads</p>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-2">Analytics</h2>
-            <p className="text-gray-600">View usage statistics</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
 
+  return <Outlet />;
+};
+
+// Public route wrapper
+const PublicRoute = () => {
+  const { isAuthenticated } = useAuth();
+  
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  
+  return <Outlet />;
+};
+
+// App component
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-        </Routes>
-      </Router>
+      <ConfigProvider
+        locale={esES}
+        theme={{
+          token: {
+            colorPrimary: '#2563EB',
+            borderRadius: 8,
+            fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+          },
+          components: {
+            Button: {
+              primaryColor: '#fff',
+            },
+          },
+        }}
+      >
+        <Router>
+          <AuthProvider>
+            <Routes>
+              {/* Public routes */}
+              <Route element={<PublicRoute />}>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+              </Route>
+
+              {/* Protected routes */}
+              <Route element={<ProtectedRoute />}>
+                <Route element={<MainLayout />}>
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/tours" element={<ToursPage />} />
+                  <Route path="/leads" element={<LeadsPage />} />
+                  <Route path="/transcripts" element={<TranscriptsPage />} />
+                  <Route path="/analytics" element={<AnalyticsPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                </Route>
+              </Route>
+
+              {/* 404 route */}
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </AuthProvider>
+        </Router>
+      </ConfigProvider>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   );
