@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 interface BackendTestResult {
   status: 'idle' | 'loading' | 'success' | 'error';

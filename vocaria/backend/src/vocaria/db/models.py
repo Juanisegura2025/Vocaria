@@ -1,140 +1,96 @@
 """
-Database models for Vocaria.
+Database models for Vocaria Admin Panel.
 
-This module contains SQLAlchemy models for the Vocaria database schema.
+This module contains SQLAlchemy models for the Vocaria real estate virtual agent SaaS.
 """
 from datetime import datetime
-from typing import List, Optional
-from uuid import UUID
+from enum import Enum as PyEnum
+from typing import Dict, Any, List, Optional
+from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean, Column, DateTime, Enum as SQLEnum, ForeignKey, 
+    Integer, JSON, String, Text, event
+)
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.sql import func
-
-from vocaria.core.config import settings
-from vocaria.schemas.enums import (
-    LeadStatus,
-    ConversationStatus,
-    MessageType,
-    UserRole,
-)
 
 Base = declarative_base()
 
+def generate_uuid():
+    return str(uuid4())
+
+class UserRole(str, PyEnum):
+    CLIENT = "client"
+    SUPER_ADMIN = "super_admin"
+
+class SubscriptionStatus(str, PyEnum):
+    ACTIVE = "active"
+    PAST_DUE = "past_due"
+    CANCELED = "canceled"
+    UNPAID = "unpaid"
+    TRIALING = "trialing"
+    INCOMPLETE = "incomplete"
+    INCOMPLETE_EXPIRED = "incomplete_expired"
+
 class User(Base):
-    """User model."""
+    """User model for the admin panel."""
     __tablename__ = "users"
 
-    id = Column(String, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    full_name = Column(String)
-    role = Column(Enum(UserRole), default=UserRole.USER)
-    is_active = Column(Boolean, default=True)
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=True)
+    role = Column(SQLEnum(UserRole), default=UserRole.CLIENT, nullable=False)
+    stripe_customer_id = Column(String(255), unique=True, nullable=True)
+    subscription_status = Column(SQLEnum(SubscriptionStatus), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
     tours = relationship("Tour", back_populates="owner", cascade="all, delete-orphan")
-    leads = relationship("Lead", back_populates="owner", cascade="all, delete-orphan")
-    files = relationship("File", back_populates="owner", cascade="all, delete-orphan")
+
+    def __repr__(self) -> str:
+        return f"<User {self.email}>"
 
 class Tour(Base):
-    """Tour model."""
+    """Property tour model for virtual showings."""
     __tablename__ = "tours"
 
-    id = Column(String, primary_key=True, index=True)
-    title = Column(String, nullable=False)
-    description = Column(Text)
-    address = Column(String)
-    status = Column(Enum(LeadStatus), default=LeadStatus.ACTIVE)
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
+    name = Column(String(255), nullable=False)
+    matterport_model_id = Column(String(255), nullable=True)
+    agent_id = Column(String(255), nullable=True, comment="ElevenLabs agent ID")
+    agent_objective = Column(Text, nullable=True, comment="Instructions for the AI agent")
+    is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    owner_id = Column(String, ForeignKey("users.id"), nullable=False)
+    owner_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     owner = relationship("User", back_populates="tours")
     leads = relationship("Lead", back_populates="tour", cascade="all, delete-orphan")
-    files = relationship("File", back_populates="tour", cascade="all, delete-orphan")
+
+    def __repr__(self) -> str:
+        return f"<Tour {self.name}>"
 
 class Lead(Base):
-    """Lead model."""
+    """Lead model for potential clients interested in properties."""
     __tablename__ = "leads"
 
-    id = Column(String, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    email = Column(String, nullable=False)
-    phone = Column(String)
-    notes = Column(Text)
-    status = Column(Enum(LeadStatus), default=LeadStatus.NEW)
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
+    email = Column(String(255), nullable=False, index=True)
+    phone = Column(String(50), nullable=True)
+    room_context = Column(JSONB, nullable=True, comment="Current room context in the tour")
+    metadata = Column(JSONB, nullable=True, comment="Additional metadata as JSON")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    tour_id = Column(String, ForeignKey("tours.id"), nullable=False)
+    tour_id = Column(PG_UUID(as_uuid=True), ForeignKey("tours.id"), nullable=False)
     tour = relationship("Tour", back_populates="leads")
-    owner_id = Column(String, ForeignKey("users.id"), nullable=False)
-    owner = relationship("User", back_populates="leads")
-    conversations = relationship("Conversation", back_populates="lead", cascade="all, delete-orphan")
-    files = relationship("File", back_populates="lead", cascade="all, delete-orphan")
 
-class Conversation(Base):
-    """Conversation model."""
-    __tablename__ = "conversations"
-
-    id = Column(String, primary_key=True, index=True)
-    status = Column(Enum(ConversationStatus), default=ConversationStatus.ACTIVE)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    # Relationships
-    lead_id = Column(String, ForeignKey("leads.id"), nullable=False)
-    lead = relationship("Lead", back_populates="conversations")
-    messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")
-
-class Message(Base):
-    """Message model."""
-    __tablename__ = "messages"
-
-    id = Column(String, primary_key=True, index=True)
-    content = Column(Text, nullable=False)
-    role = Column(Enum(MessageType), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    # Relationships
-    conversation_id = Column(String, ForeignKey("conversations.id"), nullable=False)
-    conversation = relationship("Conversation", back_populates="messages")
-
-class File(Base):
-    """File model."""
-    __tablename__ = "files"
-
-    id = Column(String, primary_key=True, index=True)
-    filename = Column(String, nullable=False)
-    unique_filename = Column(String, nullable=False, unique=True)
-    content_type = Column(String, nullable=False)
-    size = Column(Integer)
-    metadata = Column(Text)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    # Relationships
-    owner_id = Column(String, ForeignKey("users.id"), nullable=False)
-    owner = relationship("User", back_populates="files")
-    tour_id = Column(String, ForeignKey("tours.id"))
-    tour = relationship("Tour", back_populates="files")
-    lead_id = Column(String, ForeignKey("leads.id"))
-    lead = relationship("Lead", back_populates="files")
-
-class CacheItem(Base):
-    """Cache item model."""
-    __tablename__ = "cache_items"
-
-    id = Column(String, primary_key=True, index=True)
-    key = Column(String, unique=True, nullable=False)
-    value = Column(Text, nullable=False)
-    expires_at = Column(DateTime(timezone=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    def __repr__(self) -> str:
+        return f"<Lead {self.email}>"

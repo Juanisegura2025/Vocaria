@@ -6,6 +6,7 @@ from sqlalchemy import select, insert, text
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from typing import Optional, List
+from datetime import datetime
 import os
 import sys
 import hashlib
@@ -104,3 +105,179 @@ if __name__ == "__main__":
     import uvicorn
     print("🚀 Starting Vocaria API server...")
     uvicorn.run(app, host="0.0.0.0", port=8001)
+# Modelos Pydantic para requests/responses
+class UserCreate(BaseModel):
+    username: str
+    email: str
+    password: str
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    email: str
+    is_active: bool
+    created_at: Optional[datetime] = None
+
+class ConversationCreate(BaseModel):
+    user_id: int
+    title: str
+
+class ConversationResponse(BaseModel):
+    id: int
+    user_id: int
+    title: str
+    created_at: Optional[datetime] = None
+
+class MessageCreate(BaseModel):
+    conversation_id: int
+    content: str
+    is_user: bool = True
+
+class MessageResponse(BaseModel):
+    id: int
+    conversation_id: int
+    content: str
+    is_user: bool
+    created_at: Optional[datetime] = None
+
+# Helper function para hash passwords
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+# ENDPOINTS DE USUARIOS
+@app.get("/api/users", response_model=List[UserResponse])
+async def get_users(db: AsyncSession = Depends(get_db)):
+    if not MODELS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Models not available")
+    
+    result = await db.execute(select(User))
+    users = result.scalars().all()
+    return users
+
+@app.post("/api/users", response_model=UserResponse)
+async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
+    if not MODELS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Models not available")
+    
+    # Verificar si el usuario ya existe
+    result = await db.execute(select(User).where(User.email == user.email))
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Crear nuevo usuario
+    db_user = User(
+        username=user.username,
+        email=user.email,
+        hashed_password=hash_password(user.password),
+        is_active=True
+    )
+    db.add(db_user)
+    await db.commit()
+    await db.refresh(db_user)
+    return db_user
+
+@app.get("/api/users/{user_id}", response_model=UserResponse)
+async def get_user(user_id: int, db: AsyncSession = Depends(get_db)):
+    if not MODELS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Models not available")
+    
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+# ENDPOINTS DE CONVERSACIONES
+@app.get("/api/conversations", response_model=List[ConversationResponse])
+async def get_conversations(db: AsyncSession = Depends(get_db)):
+    if not MODELS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Models not available")
+    
+    result = await db.execute(select(Conversation))
+    conversations = result.scalars().all()
+    return conversations
+
+@app.post("/api/conversations", response_model=ConversationResponse)
+async def create_conversation(conversation: ConversationCreate, db: AsyncSession = Depends(get_db)):
+    if not MODELS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Models not available")
+    
+    # Verificar que el usuario existe
+    result = await db.execute(select(User).where(User.id == conversation.user_id))
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Crear conversación
+    db_conversation = Conversation(
+        user_id=conversation.user_id,
+        title=conversation.title
+    )
+    db.add(db_conversation)
+    await db.commit()
+    await db.refresh(db_conversation)
+    return db_conversation
+
+@app.get("/api/conversations/{conversation_id}", response_model=ConversationResponse)
+async def get_conversation(conversation_id: int, db: AsyncSession = Depends(get_db)):
+    if not MODELS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Models not available")
+    
+    result = await db.execute(select(Conversation).where(Conversation.id == conversation_id))
+    conversation = result.scalar_one_or_none()
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return conversation
+
+# ENDPOINTS DE MENSAJES
+@app.get("/api/messages", response_model=List[MessageResponse])
+async def get_messages(conversation_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
+    if not MODELS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Models not available")
+    
+    query = select(Message)
+    if conversation_id:
+        query = query.where(Message.conversation_id == conversation_id)
+    
+    result = await db.execute(query)
+    messages = result.scalars().all()
+    return messages
+
+@app.post("/api/messages", response_model=MessageResponse)
+async def create_message(message: MessageCreate, db: AsyncSession = Depends(get_db)):
+    if not MODELS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Models not available")
+    
+    # Verificar que la conversación existe
+    result = await db.execute(select(Conversation).where(Conversation.id == message.conversation_id))
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    # Crear mensaje
+    db_message = Message(
+        conversation_id=message.conversation_id,
+        content=message.content,
+        is_user=message.is_user
+    )
+    db.add(db_message)
+    await db.commit()
+    await db.refresh(db_message)
+    return db_message
+
+@app.get("/api/conversations/{conversation_id}/messages", response_model=List[MessageResponse])
+async def get_conversation_messages(conversation_id: int, db: AsyncSession = Depends(get_db)):
+    if not MODELS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Models not available")
+    
+    # Verificar que la conversación existe
+    result = await db.execute(select(Conversation).where(Conversation.id == conversation_id))
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    # Obtener mensajes
+    result = await db.execute(
+        select(Message)
+        .where(Message.conversation_id == conversation_id)
+        .order_by(Message.created_at)
+    )
+    messages = result.scalars().all()
+    return messages
