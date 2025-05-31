@@ -1,11 +1,11 @@
-import { Card, Col, Row, Statistic } from 'antd';
+import { Card, Col, Row } from 'antd';
 import { Home, Users, MessageSquare, TrendingUp, PlusCircle, UserPlus, BarChart2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchApi } from '../../api/client';
 
 const DashboardPage = () => {
   // Fetch dashboard data
-  const { data: stats, isLoading } = useQuery({
+  const { data: stats } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: () => fetchApi('/api/dashboard/stats'),
   });

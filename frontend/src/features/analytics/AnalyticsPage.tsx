@@ -1,4 +1,5 @@
-import { Card, Row, Col, Select, DatePicker, Divider, Statistic, Space, Button } from 'antd';
+import { Card, Row, Col, Select, DatePicker, Statistic, Space, Button } from 'antd';
+import { Download } from 'lucide-react';
 import { 
   BarChart, 
   Bar, 
@@ -12,14 +13,6 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { 
-  Users, 
-  Home, 
-  MessageSquare, 
-  TrendingUp, 
-  Calendar as CalendarIcon,
-  Download
-} from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchApi } from '../../api/client';
@@ -29,18 +22,37 @@ const { Option } = Select;
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
-const AnalyticsPage = () => {
-  const [dateRange, setDateRange] = useState([null, null]);
-  const [tourFilter, setTourFilter] = useState('all');
+interface AnalyticsData {
+  totalLeads: number;
+  totalTours: number;
+  conversionRate: number;
+  avgSessionDuration: string;
+  leadsBySource: Array<{
+    name: string;
+    value: number;
+  }>;
+  leadsByTour: Array<{
+    name: string;
+    leads: number;
+  }>;
+  leadsOverTime: Array<{
+    date: string;
+    leads: number;
+    tours: number;
+  }>;
+}
 
-  // Fetch analytics data
-  const { data: analytics, isLoading } = useQuery({
+const AnalyticsPage = () => {
+  const [dateRange, setDateRange] = useState<[string, string]>(['', '']);
+  const [tourFilter, setTourFilter] = useState<string>('all');
+
+  const { data: analytics, isLoading } = useQuery<AnalyticsData>({
     queryKey: ['analytics', dateRange, tourFilter],
     queryFn: () => fetchApi('/api/analytics'),
   });
 
-  // Mock data - in a real app, this would come from the API
-  const mockData = {
+  // Mock data for development
+  const mockData: AnalyticsData = {
     totalLeads: 124,
     totalTours: 8,
     conversionRate: 0.42,
@@ -76,15 +88,20 @@ const AnalyticsPage = () => {
         <Space>
           <RangePicker 
             placeholder={['Fecha inicio', 'Fecha fin']} 
-            onChange={(dates) => setDateRange(dates as any)}
-            suffixIcon={<CalendarIcon size={16} />}
+            onChange={(dates) => {
+              if (dates && dates[0] && dates[1]) {
+                setDateRange([dates[0].format('YYYY-MM-DD'), dates[1].format('YYYY-MM-DD')]);
+              } else {
+                setDateRange(['', '']);
+              }
+            }}
             className="w-full sm:w-auto"
           />
           <Select
             placeholder="Filtrar por tour"
             style={{ width: 200 }}
             value={tourFilter}
-            onChange={setTourFilter}
+            onChange={(value: string) => setTourFilter(value)}
           >
             <Option value="all">Todos los tours</Option>
             <Option value="casa-costa">Casa en la Costa</Option>
@@ -103,7 +120,6 @@ const AnalyticsPage = () => {
             <Statistic
               title="Total de Leads"
               value={data.totalLeads}
-              prefix={<Users className="text-blue-500" size={24} />}
               valueStyle={{ color: '#3f8600' }}
               loading={isLoading}
             />
@@ -114,7 +130,6 @@ const AnalyticsPage = () => {
             <Statistic
               title="Tours Activos"
               value={data.totalTours}
-              prefix={<Home className="text-green-500" size={24} />}
               valueStyle={{ color: '#3f8600' }}
               loading={isLoading}
             />
@@ -127,7 +142,6 @@ const AnalyticsPage = () => {
               value={data.conversionRate * 100}
               precision={1}
               suffix="%"
-              prefix={<TrendingUp className="text-purple-500" size={24} />}
               valueStyle={{ color: '#722ed1' }}
               loading={isLoading}
             />
@@ -138,7 +152,6 @@ const AnalyticsPage = () => {
             <Statistic
               title="Interacción Promedio"
               value={data.avgSessionDuration}
-              prefix={<MessageSquare className="text-amber-500" size={24} />}
               loading={isLoading}
             />
           </Card>
@@ -181,7 +194,7 @@ const AnalyticsPage = () => {
                       `${name}: ${(percent * 100).toFixed(0)}%`
                     }
                   >
-                    {data.leadsBySource.map((entry: any, index: number) => (
+                    {data.leadsBySource.map((item: { name: string; value: number }, index: number) => (
                       <Cell 
                         key={`cell-${index}`} 
                         fill={COLORS[index % COLORS.length]} 
