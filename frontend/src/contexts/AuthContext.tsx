@@ -1,12 +1,22 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { authService } from '../services/authService';
 
+// Frontend User interface - independent of the auth service
 interface User {
   id: string;
   email: string;
   fullName: string;
   role: string;
 }
+
+// Helper to map auth user to our app's user model
+const mapAuthUserToUser = (authUser: { id: number; email: string; username: string }): User => ({
+  id: authUser.id.toString(),
+  email: authUser.email,
+  fullName: authUser.username,
+  role: 'user', // Default role, adjust as needed
+});
 
 interface AuthContextType {
   user: User | null;
@@ -23,64 +33,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  const loadUser = useCallback(async () => {
+    try {
+      if (authService.isAuthenticated()) {
+        const authUser = await authService.getCurrentUser();
+        setUser(mapAuthUserToUser(authUser));
+      } else {
+        setUser(null);
+      }
+    } catch (error) {
+      console.error('Failed to load user:', error);
+      // If there's an error (e.g., token expired), clear the session
+      authService.logout();
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     // Check if user is logged in
-    const checkAuth = async () => {
-      try {
-        // In a real app, you would verify the session with your backend
-        const token = localStorage.getItem('token');
-        if (token) {
-          // Mock user data - in a real app, fetch user data from your API
-          setUser({
-            id: '1',
-            email: 'admin@vocaria.com',
-            fullName: 'Admin User',
-            role: 'admin',
-          });
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, []);
+    loadUser();
+  }, [loadUser]);
 
   const login = async (email: string, password: string) => {
     try {
-      // In a real app, you would make an API call to your backend
-      // const response = await fetch('/api/auth/login', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ email, password }),
-      // });
-      // const data = await response.json();
-      
-      // Mock response
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Mock user data
-      const mockUser = {
-        id: '1',
-        email: email,
-        fullName: 'Admin User',
-        role: 'admin',
-        token: 'mock-jwt-token',
-      };
-      
-      localStorage.setItem('token', mockUser.token);
-      setUser(mockUser);
+      setLoading(true);
+      const response = await authService.login({ email, password });
+      setUser(mapAuthUserToUser(response.user));
       navigate('/dashboard');
     } catch (error) {
       console.error('Login failed:', error);
-      throw new Error('Failed to login. Please check your credentials.');
+      throw new Error(
+        error instanceof Error ? error.message : 'Failed to login. Please check your credentials.'
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
+    authService.logout();
     setUser(null);
     navigate('/login');
   };
