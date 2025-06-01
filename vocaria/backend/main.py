@@ -1,22 +1,42 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, insert, text
 from contextlib import asynccontextmanager
-from pydantic import BaseModel
-from typing import Optional, List
-from datetime import datetime
+from pydantic import BaseModel, EmailStr
+from typing import Optional, List, Dict, Any
+from datetime import datetime, timedelta
 import os
 import sys
 import hashlib
-from datetime import datetime
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from dotenv import load_dotenv
 
-# Agregar src al path
+# Load environment variables
+load_dotenv()
+
+# Import auth utilities
+from src.vocaria.auth import (
+    create_access_token,
+    verify_password,
+    get_password_hash,
+    get_current_user,
+    get_current_active_user,
+    SECRET_KEY,
+    ALGORITHM,
+    ACCESS_TOKEN_EXPIRE_MINUTES
+)
+
+# Add src to path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
-# Intentar importar los modelos
+# Import database configuration
+from src.database import get_db, engine
+
+# Try to import models
 try:
     from models import User, Conversation, Message
     MODELS_AVAILABLE = True
@@ -27,17 +47,6 @@ except ImportError as e:
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./vocaria.db")
-engine = create_async_engine(DATABASE_URL, echo=False)
-async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
-async def get_db():
-    async with async_session() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("🚀 Vocaria API starting up...")
@@ -45,17 +54,42 @@ async def lifespan(app: FastAPI):
     print("🛑 Vocaria API shutting down...")
     await engine.dispose()
 
-# Modelos Pydantic
-class UserCreate(BaseModel):
-    username: str
-    email: str
+# Authentication Models
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    user: Dict[str, Any]
+
+class TokenData(BaseModel):
+    email: Optional[str] = None
+
+class LoginRequest(BaseModel):
+    email: EmailStr
     password: str
 
-class UserResponse(BaseModel):
-    id: int
+class RegisterRequest(BaseModel):
     username: str
-    email: str
-    is_active: bool
+    email: EmailStr
+    password: str
+
+# User Models
+class UserBase(BaseModel):
+    email: EmailStr
+    username: str
+    is_active: bool = True
+
+class UserCreate(UserBase):
+    password: str
+
+class UserResponse(UserBase):
+    id: int
+    created_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
 
 app = FastAPI(
     title="Vocaria API",
@@ -88,9 +122,14 @@ async def root():
 @app.get("/health")
 async def health_check():
     try:
+        db_url = os.getenv('DATABASE_URL')
         return {
             "status": "✅ healthy",
-            "database": "🗄️ available" if DATABASE_URL else "❌ not configured",
+            "database": {
+                "status": "✅ available" if db_url else "❌ not configured",
+                "url": "[HIDDEN]" if db_url else None,
+                "type": db_url.split('://')[0] if db_url and '://' in db_url else None
+            },
             "models": "✅ loaded" if MODELS_AVAILABLE else "⚠️ not loaded",
             "timestamp": datetime.now().isoformat()
         }
@@ -140,9 +179,70 @@ class MessageResponse(BaseModel):
     is_user: bool
     created_at: Optional[datetime] = None
 
-# Helper function para hash passwords
-def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+# Auth endpoints
+@app.post("/api/auth/register", response_model=UserResponse)
+async def register(user: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    # Check if user already exists
+    result = await db.execute(select(User).filter(User.email == user.email))
+    if result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+    
+    # Create new user
+    hashed_password = get_password_hash(user.password)
+    db_user = User(
+        username=user.username,
+        email=user.email,
+        hashed_password=hashed_password,
+        is_active=True
+    )
+    
+    db.add(db_user)
+    await db.commit()
+    await db.refresh(db_user)
+    
+    return db_user
+
+@app.post("/api/auth/login", response_model=Token)
+async def login(form_data: LoginRequest, db: AsyncSession = Depends(get_db)):
+    # Get user by email
+    result = await db.execute(select(User).filter(User.email == form_data.email))
+    user = result.scalar_one_or_none()
+    
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Create access token
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": str(user.id)},
+        expires_delta=access_token_expires
+    )
+    
+    # Return token and user info
+    user_dict = {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "is_active": user.is_active,
+        "created_at": user.created_at
+    }
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user_dict
+    }
+
+@app.get("/api/auth/me", response_model=UserResponse)
+async def read_users_me(current_user: User = Depends(get_current_active_user)):
+    return current_user
 
 # ENDPOINTS DE USUARIOS
 @app.get("/api/users", response_model=List[UserResponse])
@@ -154,7 +254,7 @@ async def get_users(db: AsyncSession = Depends(get_db)):
     users = result.scalars().all()
     return users
 
-@app.post("/api/users", response_model=UserResponse)
+@app.post("/api/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     if not MODELS_AVAILABLE:
         raise HTTPException(status_code=503, detail="Models not available")
@@ -162,15 +262,20 @@ async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
     # Verificar si el usuario ya existe
     result = await db.execute(select(User).where(User.email == user.email))
     if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Email already registered"
+        )
     
-    # Crear nuevo usuario
+    # Crear nuevo usuario con contraseña hasheada
+    hashed_password = get_password_hash(user.password)
     db_user = User(
         username=user.username,
         email=user.email,
-        hashed_password=hash_password(user.password),
+        hashed_password=hashed_password,
         is_active=True
     )
+    
     db.add(db_user)
     await db.commit()
     await db.refresh(db_user)
