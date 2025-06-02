@@ -1,80 +1,120 @@
-import axios from 'axios';
-import { api } from './authService';
+import { authService } from './authService';
 
-// Types
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001';
+
 export interface Tour {
-  id: string;
-  property_id: string;
-  scheduled_time: string;
-  status: 'scheduled' | 'completed' | 'cancelled';
+  id: number;
+  name: string;
+  matterport_model_id: string;
+  agent_id?: string;
+  agent_objective: string;
+  is_active: boolean;
+  room_data?: any[];
   created_at: string;
   updated_at: string;
-}
-
-export interface CreateTourData {
-  property_id: string;
-  scheduled_time: string;
+  leads_count?: number;
+  scheduled_time?: string;
   status?: 'scheduled' | 'completed' | 'cancelled';
+  last_activity?: string;
+  property_id?: string;
 }
 
 export interface Lead {
-  id: string;
-  name: string;
+  id: number;
+  tour_id: number;
+  name?: string;
   email: string;
-  phone: string;
-  message?: string;
-  tour_id: string;
+  phone?: string;
+  room_context?: {
+    roomName?: string;
+    area_m2?: number;
+  };
+  lead_data?: any;
   created_at: string;
 }
 
-/**
- * Service for managing property tours
- */
+export interface CreateTourData {
+  name: string;
+  matterport_model_id: string;
+  agent_objective?: string;
+  is_active?: boolean;
+}
+
 class ToursService {
-  /**
-   * Get all tours for the authenticated user
-   */
+  private async makeRequest(endpoint: string, options: RequestInit = {}) {
+    const token = authService.getToken();
+    
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        authService.logout();
+        window.location.href = '/login';
+        throw new Error('Session expired');
+      }
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
   async getTours(): Promise<Tour[]> {
     try {
-      const response = await api.get<Tour[]>('/api/tours');
-      return response.data;
+      return await this.makeRequest('/api/tours');
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        throw new Error(error.response?.data?.detail || 'Failed to fetch tours');
-      }
-      throw new Error('An unexpected error occurred while fetching tours');
+      console.error('Error fetching tours:', error);
+      throw error;
     }
   }
 
-  /**
-   * Create a new tour
-   */
   async createTour(tourData: CreateTourData): Promise<Tour> {
     try {
-      const response = await api.post<Tour>('/api/tours', tourData);
-      return response.data;
+      return await this.makeRequest('/api/tours', {
+        method: 'POST',
+        body: JSON.stringify(tourData),
+      });
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        throw new Error(error.response?.data?.detail || 'Failed to create tour');
-      }
-      throw new Error('An unexpected error occurred while creating tour');
+      console.error('Error creating tour:', error);
+      throw error;
     }
   }
 
-  /**
-   * Get leads for a specific tour
-   */
-  async getTourLeads(tourId: string): Promise<Lead[]> {
+  async deleteTour(tourId: number): Promise<void> {
     try {
-      const response = await api.get<Lead[]>(`/api/tours/${tourId}/leads`);
-      return response.data;
+      await this.makeRequest(`/api/tours/${tourId}`, {
+        method: 'DELETE',
+      });
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        throw new Error(
-          error.response?.data?.detail || 'Failed to fetch tour leads'
-        );
-      }
-      throw new Error('An unexpected error occurred while fetching tour leads');
+      console.error('Error deleting tour:', error);
+      throw error;
+    }
+  }
+
+  async getTourLeads(tourId: number): Promise<Lead[]> {
+    try {
+      return await this.makeRequest(`/api/tours/${tourId}/leads`);
+    } catch (error) {
+      console.error('Error fetching tour leads:', error);
+      throw error;
+    }
+  }
+
+  async createLead(leadData: Omit<Lead, 'id' | 'created_at'>): Promise<Lead> {
+    try {
+      return await this.makeRequest('/api/leads', {
+        method: 'POST',
+        body: JSON.stringify(leadData),
+      });
+    } catch (error) {
+      console.error('Error creating lead:', error);
+      throw error;
     }
   }
 }

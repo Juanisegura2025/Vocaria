@@ -2,16 +2,13 @@ import { Button, Card, Table, Tag, Space, Input, Row, Col, Avatar } from 'antd';
 import { Plus, Search, Mail, Phone, Home, Calendar, Filter, Download } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toursService } from '../../services/toursService';
-import type { Lead } from '../../services/toursService';
+import type { Lead, Tour } from '../../services/toursService';
 
 const { Search: SearchInput } = Input;
 
 interface LeadWithTour extends Lead {
   status?: 'new' | 'contacted' | 'qualified' | 'converted' | 'unqualified';
-  tour?: {
-    property_id: string;
-    scheduled_time: string;
-  };
+  tourName?: string;
 }
 
 const LeadsPage = () => {
@@ -28,20 +25,24 @@ const LeadsPage = () => {
         // First, get all tours
         const tours = await toursService.getTours();
         
+        // Create a map of tour ID to tour name
+        const tourMap = new Map<number, string>();
+        tours.forEach((tour: Tour) => {
+          tourMap.set(tour.id, tour.name);
+        });
+        
         // Then get leads for each tour and combine them
         const allLeads: LeadWithTour[] = [];
         
         for (const tour of tours) {
           try {
             const tourLeads = await toursService.getTourLeads(tour.id);
-            const leadsWithTour = tourLeads.map(lead => ({
+            const leadsWithTourName = tourLeads.map(lead => ({
               ...lead,
-              tour: {
-                property_id: tour.property_id,
-                scheduled_time: tour.scheduled_time
-              }
+              tourName: tour.name, // Add the actual tour name
+              status: 'new' as const // Default status
             }));
-            allLeads.push(...leadsWithTour);
+            allLeads.push(...leadsWithTourName);
           } catch (e) {
             console.warn(`Could not load leads for tour ${tour.id}`, e);
           }
@@ -135,7 +136,23 @@ const LeadsPage = () => {
       render: (record: LeadWithTour) => (
         <div className="flex items-center text-sm">
           <Home size={14} className="mr-1 text-gray-500" />
-          {record.tour ? `Propiedad #${record.tour.property_id}` : 'Sin tour asignado'}
+          <span className="font-medium">
+            {record.tourName || 'Tour no identificado'}
+          </span>
+        </div>
+      ),
+    },
+    {
+      title: 'Contexto',
+      key: 'context',
+      render: (record: LeadWithTour) => (
+        <div className="text-sm text-gray-600">
+          {record.room_context?.roomName && (
+            <div>📍 {record.room_context.roomName}</div>
+          )}
+          {record.room_context?.area_m2 && (
+            <div>📐 {record.room_context.area_m2} m²</div>
+          )}
         </div>
       ),
     },
@@ -150,7 +167,7 @@ const LeadsPage = () => {
           qualified: { color: 'green', text: 'Calificado' },
           unqualified: { color: 'red', text: 'No calificado' },
         };
-        const statusInfo = statusMap[status] || { color: 'default', text: status };
+        const statusInfo = statusMap[status] || { color: 'default', text: 'Nuevo' };
         return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>;
       },
       filters: [
@@ -178,12 +195,13 @@ const LeadsPage = () => {
     {
       title: 'Acciones',
       key: 'actions',
-      render: () => (
+      render: (record: LeadWithTour) => (
         <Space size="middle">
           <Button 
             type="link" 
             size="small"
             className="text-blue-500 p-0"
+            onClick={() => console.log('Ver detalles lead:', record.id)}
           >
             Ver Detalles
           </Button>
@@ -192,6 +210,7 @@ const LeadsPage = () => {
             size="small" 
             icon={<Mail size={16} />} 
             title="Enviar Email"
+            onClick={() => window.open(`mailto:${record.email}`, '_blank')}
           />
         </Space>
       ),
@@ -215,7 +234,7 @@ const LeadsPage = () => {
         safeStringIncludes(lead.name, searchLower) ||
         safeStringIncludes(lead.email, searchLower) ||
         safeStringIncludes(lead.phone, searchLower) ||
-        (lead.tour?.property_id && safeStringIncludes(lead.tour.property_id, searchLower));
+        safeStringIncludes(lead.tourName, searchLower);
         
       const matchesStatus = statusFilterValue ? lead.status === statusFilterValue : true;
       
@@ -233,6 +252,7 @@ const LeadsPage = () => {
           <Button 
             icon={<Download size={16} />}
             className="flex items-center"
+            onClick={() => console.log('Export functionality pending')}
           >
             Exportar
           </Button>
@@ -240,6 +260,7 @@ const LeadsPage = () => {
             type="primary" 
             icon={<Plus size={16} />}
             className="flex items-center"
+            onClick={() => console.log('Add lead functionality pending')}
           >
             Agregar Lead
           </Button>
@@ -260,7 +281,10 @@ const LeadsPage = () => {
             </Col>
             <Col xs={24} md={12} lg={16} className="text-right">
               <Space>
-                <Button icon={<Filter size={16} />}>
+                <Button 
+                  icon={<Filter size={16} />}
+                  onClick={() => console.log('Advanced filters pending')}
+                >
                   Filtros
                 </Button>
                 <Button onClick={() => setStatusFilter(null)}>

@@ -1,8 +1,10 @@
-import { Button, Card, Table, Tag, Space, Input, Row, Col } from 'antd';
+import { Button, Card, Table, Tag, Space, Input, Row, Col, Modal, message } from 'antd';
 import { Home, Search, Plus, Edit, Trash2, Eye } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toursService } from '../../services/toursService';
 import type { Tour } from '../../services/toursService';
+import ViewTourModal from '../../components/modals/ViewTourModal';
+import CreateTourModal from '../../components/modals/CreateTourModal';
 
 const { Search: SearchInput } = Input;
 
@@ -12,8 +14,68 @@ const ToursPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // Modal states
+  const [viewModalVisible, setViewModalVisible] = useState(false);
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+  
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchText(e.target.value);
+  };
+
+  // Load tours function
+  const loadTours = async () => {
+    try {
+      setLoading(true);
+      const data = await toursService.getTours();
+      setTours(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error loading tours');
+      console.error('Error loading tours:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Action handlers
+  const handleViewTour = (tour: Tour) => {
+    setSelectedTour(tour);
+    setViewModalVisible(true);
+  };
+
+  const handleCreateTour = () => {
+    setCreateModalVisible(true);
+  };
+
+  const handleDeleteTour = (tour: Tour) => {
+    Modal.confirm({
+      title: '¿Estás seguro?',
+      content: `¿Quieres eliminar el tour "${tour.name}"? Esta acción no se puede deshacer.`,
+      okText: 'Sí, eliminar',
+      cancelText: 'Cancelar',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          setDeleteLoading(tour.id.toString());
+          await toursService.deleteTour(tour.id);
+          message.success('Tour eliminado exitosamente');
+          // Reload tours
+          await loadTours();
+        } catch (error) {
+          message.error('Error al eliminar el tour');
+          console.error('Delete error:', error);
+        } finally {
+          setDeleteLoading(null);
+        }
+      }
+    });
+  };
+
+  const handleTourCreated = async () => {
+    setCreateModalVisible(false);
+    message.success('Tour creado exitosamente');
+    await loadTours();
   };
 
   // Safe filter function
@@ -23,9 +85,9 @@ const ToursPage = () => {
     const searchLower = searchValue.toLowerCase();
     return items.filter(tour => 
       tour &&
-      (safeStringIncludes(tour.property_id, searchLower) ||
-       safeStringIncludes(tour.status, searchLower) ||
-       safeStringIncludes(tour.id, searchLower))
+      (safeStringIncludes(tour.name, searchLower) ||
+       safeStringIncludes(tour.matterport_model_id, searchLower) ||
+       safeStringIncludes(tour.id?.toString(), searchLower))
     );
   };
 
@@ -37,19 +99,6 @@ const ToursPage = () => {
   const filteredTours = safeFilter(tours, searchText || '');
 
   useEffect(() => {
-    const loadTours = async () => {
-      try {
-        setLoading(true);
-        const data = await toursService.getTours();
-        setTours(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Error loading tours');
-        console.error('Error loading tours:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     loadTours();
   }, []);
 
@@ -107,32 +156,14 @@ const ToursPage = () => {
       ),
     },
     {
-      title: 'Fecha Programada',
-      dataIndex: 'scheduled_time',
-      key: 'scheduledTime',
+      title: 'Fecha Creación',
+      dataIndex: 'created_at',
+      key: 'created_at',
       render: (date: string) => (
         <div>
           {formatDate(date)}
         </div>
       ),
-    },
-    {
-      title: 'Estado',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: 'scheduled' | 'completed' | 'cancelled') => {
-        const statusMap = {
-          scheduled: { color: 'green', text: 'Programado' },
-          completed: { color: 'blue', text: 'Completado' },
-          cancelled: { color: 'red', text: 'Cancelado' }
-        };
-        const statusInfo = statusMap[status] || { color: 'gray', text: 'Desconocido' };
-        return (
-          <Tag color={statusInfo.color}>
-            {statusInfo.text}
-          </Tag>
-        );
-      }
     },
     {
       title: 'Leads',
@@ -143,33 +174,31 @@ const ToursPage = () => {
       ),
     },
     {
-      title: 'Última actividad',
-      dataIndex: 'last_activity',
-      key: 'lastActivity',
-      render: (date: string) => 
-        date ? new Date(date).toLocaleDateString() : 'Nunca',
-    },
-    {
       title: 'Acciones',
       key: 'actions',
-      render: () => (
+      render: (_, record: Tour) => (
         <Space size="middle">
           <Button 
             type="text" 
             icon={<Eye size={16} />} 
             title="Ver detalles"
+            onClick={() => handleViewTour(record)}
+            className="text-blue-500"
           />
           <Button 
             type="text" 
             icon={<Edit size={16} />} 
             title="Editar"
             className="text-blue-500"
+            onClick={() => message.info('Funcionalidad de edición pendiente')}
           />
           <Button 
             type="text" 
             danger 
             icon={<Trash2 size={16} />} 
             title="Eliminar"
+            loading={deleteLoading === record.id?.toString()}
+            onClick={() => handleDeleteTour(record)}
           />
         </Space>
       ),
@@ -184,6 +213,7 @@ const ToursPage = () => {
           type="primary" 
           icon={<Plus size={16} />}
           className="flex items-center"
+          onClick={handleCreateTour}
         >
           Crear Tour
         </Button>
@@ -203,8 +233,12 @@ const ToursPage = () => {
             </Col>
             <Col xs={24} md={12} lg={18} className="text-right">
               <Space>
-                <Button>Filtrar</Button>
-                <Button>Exportar</Button>
+                <Button onClick={() => message.info('Filtros avanzados pendientes')}>
+                  Filtrar
+                </Button>
+                <Button onClick={() => message.info('Exportación pendiente')}>
+                  Exportar
+                </Button>
               </Space>
             </Col>
           </Row>
@@ -228,6 +262,22 @@ const ToursPage = () => {
           />
         )}
       </Card>
+
+      {/* Modals */}
+      <ViewTourModal
+        visible={viewModalVisible}
+        tour={selectedTour}
+        onClose={() => {
+          setViewModalVisible(false);
+          setSelectedTour(null);
+        }}
+      />
+
+      <CreateTourModal
+        visible={createModalVisible}
+        onClose={() => setCreateModalVisible(false)}
+        onSuccess={handleTourCreated}
+      />
     </div>
   );
 };
