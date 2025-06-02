@@ -25,7 +25,7 @@ export interface RegisterData extends LoginCredentials {
 }
 
 // Configure axios instance
-const api = axios.create({
+export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001',
   headers: {
     'Content-Type': 'application/json',
@@ -112,7 +112,7 @@ export const authService = {
    */
   logout(): void {
     localStorage.removeItem('access_token');
-    // Optional: Clear any other user-related data
+    // Optional:  return api.get<{ message: string }>('/api/auth/logout');
   },
 
   /**
@@ -121,4 +121,14 @@ export const authService = {
   getToken(): string | null {
     return localStorage.getItem('access_token');
   },
+};
+
+export default {
+  api,
+  login: authService.login,
+  register: authService.register,
+  getCurrentUser: authService.getCurrentUser,
+  isAuthenticated: authService.isAuthenticated,
+  logout: authService.logout,
+  getToken: authService.getToken,
 };

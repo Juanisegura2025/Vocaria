@@ -194,7 +194,7 @@ const AnalyticsPage = () => {
                       `${name}: ${(percent * 100).toFixed(0)}%`
                     }
                   >
-                    {data.leadsBySource.map((item: { name: string; value: number }, index: number) => (
+                    {data.leadsBySource.map((_: { name: string; value: number }, index: number) => (
                       <Cell 
                         key={`cell-${index}`} 
                         fill={COLORS[index % COLORS.length]} 

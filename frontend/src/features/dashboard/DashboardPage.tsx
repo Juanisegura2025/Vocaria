@@ -1,41 +1,90 @@
-import { Card, Col, Row } from 'antd';
+import { Card, Col, Row, Spin, Alert } from 'antd';
 import { Home, Users, MessageSquare, TrendingUp, PlusCircle, UserPlus, BarChart2 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchApi } from '../../api/client';
+import { useEffect, useState } from 'react';
+import { toursService } from '../../services/toursService';
+import type { Tour } from '../../services/toursService';
 
 const DashboardPage = () => {
-  // Fetch dashboard data
-  const { data: stats } = useQuery({
-    queryKey: ['dashboard-stats'],
-    queryFn: () => fetchApi('/api/dashboard/stats'),
-  });
+  const [loading, setLoading] = useState(true);
+  const [toursData, setToursData] = useState<Tour[]>([]);
+  const [totalLeads, setTotalLeads] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        setLoading(true);
+        const tours = await toursService.getTours();
+        setToursData(tours);
+        
+        // Count total leads across all tours
+        let leadsCount = 0;
+        for (const tour of tours) {
+          try {
+            const leads = await toursService.getTourLeads(tour.id);
+            leadsCount += leads.length;
+          } catch (e) {
+            console.warn(`Could not load leads for tour ${tour.id}`, e);
+          }
+        }
+        setTotalLeads(leadsCount);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error loading dashboard data');
+        console.error('Error loading dashboard data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadDashboardData();
+  }, []);
 
   const statCards = [
     {
       title: 'Tours Activos',
-      value: stats?.activeTours || 0,
+      value: toursData.filter(tour => tour.status === 'scheduled').length,
       icon: <Home className="text-blue-500" size={24} />,
       color: 'bg-blue-50',
     },
     {
       title: 'Leads Capturados',
-      value: stats?.totalLeads || 0,
+      value: totalLeads,
       icon: <Users className="text-green-500" size={24} />,
       color: 'bg-green-50',
     },
     {
-      title: 'Conversaciones Hoy',
-      value: stats?.todayConversations || 0,
+      title: 'Tours Totales',
+      value: toursData.length,
       icon: <MessageSquare className="text-purple-500" size={24} />,
       color: 'bg-purple-50',
     },
     {
       title: 'Tasa de Conversión',
-      value: stats?.conversionRate ? `${(stats.conversionRate * 100).toFixed(1)}%` : '0%',
+      value: '0%', // This would require additional business logic to calculate
       icon: <TrendingUp className="text-amber-500" size={24} />,
       color: 'bg-amber-50',
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert
+        message="Error"
+        description={error}
+        type="error"
+        showIcon
+        className="mb-4"
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">

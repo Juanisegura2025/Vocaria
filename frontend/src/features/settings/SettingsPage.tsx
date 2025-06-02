@@ -20,7 +20,7 @@ const SettingsPage = () => {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
 
-  const onFinish = async (values: any) => {
+  const onFinish = async () => {
     setLoading(true);
     try {
       // Simulate API call
@@ -234,9 +234,11 @@ const SettingsPage = () => {
                     style={{ width: 300 }}
                     showSearch
                     optionFilterProp="children"
-                    filterOption={(input, option) =>
-                      (option?.children as string).toLowerCase().includes(input.toLowerCase())
-                    }
+                    filterOption={(input, option) => {
+                      const optionText = option?.children as string | string[] | undefined;
+                      const text = Array.isArray(optionText) ? optionText.join('') : optionText || '';
+                      return text.toLowerCase().includes(input.toLowerCase());
+                    }}
                   >
                     <Option value="America/Argentina/Buenos_Aires">(GMT-03:00) Buenos Aires</Option>
                     <Option value="America/Mexico_City">(GMT-06:00) Ciudad de México</Option>

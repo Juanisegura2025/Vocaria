@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Card, Input, List, Avatar, Tag, Select, Button, Space, Divider } from 'antd';
-import { Search, MessageSquare, User, Home, Calendar, Filter, Download } from 'lucide-react';
+import { Card, Input, List, Avatar, Tag, Select, Button, Space } from 'antd';
+import { Search, MessageSquare, Home, Filter, Download } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchApi } from '../../api/client';
 
@@ -18,9 +18,9 @@ const TranscriptsPage = () => {
   });
 
   // Get unique tours for filter
-  const tours = Array.from(
+  const tours: string[] = Array.from(
     new Set(transcripts.map((t: any) => t.tour?.name).filter(Boolean))
-  );
+  ) as string[];
 
   const filteredTranscripts = transcripts.filter((transcript: any) => {
     const matchesSearch = 

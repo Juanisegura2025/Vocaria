@@ -1,4 +1,3 @@
-
 # Vocaria - Estado Actual y Metodología de Trabajo 
 
 **GitHub Repository:** https://github.com/Juanisegura2025/Vocaria
@@ -15,26 +14,25 @@
 
 ---
 
-## 🎉 **ESTADO ACTUAL: PREMIUM AUTH FLOW + DESIGN SYSTEM COMPLETO**
+## 🎉 **ESTADO ACTUAL: SAAS INMOBILIARIO BACKEND FUNCIONAL**
 
-### ✅ **SESIÓN 4 COMPLETADA EXITOSAMENTE (Premium Auth + Design System)**
+### ✅ **FASE 3A COMPLETADA EXITOSAMENTE (Database Schema Inmobiliario)**
 
 **🏆 LOGROS EXTRAORDINARIOS:**
-- **✅ Design System Completo** - CSS variables, tokens, componentes reutilizables
-- **✅ Premium Auth Flow** - LoginPage + RegisterPage con aesthetic profesional
-- **✅ Component Architecture** - AuthCard, AuthButton, AuthInput, TrustIndicators
-- **✅ TypeScript Resolved** - Todos los errores de importación solucionados
-- **✅ Professional Polish** - Spacing, branding, trust indicators optimizados
-- **✅ Business Ready** - Auth flow demo-ready para clientes reales
+- **✅ Database Schema Inmobiliario** - User/Tour/Lead/Property funcionando
+- **✅ API Endpoints Inmobiliarios** - POST/GET tours, leads completamente funcionales
+- **✅ Migración Sin Pérdida** - Schema anterior preservado + nuevos modelos
+- **✅ Auth System Compatible** - JWT funcionando con nuevos modelos
+- **✅ End-to-End Testing** - Tours + leads creados y consultados exitosamente
+- **✅ Business Ready** - SaaS inmobiliario real funcionando
 
 **🔧 STACK TECNOLÓGICO EVOLUCIONADO:**
 - **Backend:** FastAPI + PostgreSQL + SQLAlchemy async + JWT + bcrypt
-- **Frontend:** React + TypeScript + Antd + Tailwind + **Custom Design System**
-- **Design System:** CSS variables + component library + professional theming
-- **Components:** Reusable auth components + premium styling
-- **Database:** PostgreSQL con pgvector extension
-- **Auth:** JWT tokens + bcrypt + premium UX
-- **Testing:** Script automatizado + health checks funcionando
+- **Database Schema:** User/Tour/Lead/Property (inmobiliario real)
+- **API Endpoints:** Tours CRUD + Leads capture + Analytics ready
+- **Frontend:** React + TypeScript + Antd + Tailwind + Custom Design System
+- **Auth:** JWT tokens + bcrypt + premium UX compatible con nuevos modelos
+- **Testing:** Script automatizado + health checks + endpoints testing
 
 ---
 
@@ -45,16 +43,19 @@
 ├── venv/                               ← Virtual environment Python
 ├── .env                               ← Variables de entorno principales
 ├── test-api.sh                        ← Script de testing automatizado
+├── backup_before_fase3_20250601_2330.sql ← BACKUP CRÍTICO Fase 2
 ├── 
-├── vocaria/backend/                    ← BACKEND FASTAPI
-│   ├── main.py                        ← API principal (puerto 8001)
+├── vocaria/backend/                    ← BACKEND FASTAPI INMOBILIARIO
+│   ├── main.py                        ← API principal + endpoints inmobiliarios
 │   ├── .env                           ← DATABASE_URL backend
+│   ├── migrate_to_real_estate.py      ← Script migración ejecutado
 │   ├── src/
-│   │   ├── models.py                  ← User/Conversation/Message SQLAlchemy
+│   │   ├── models.py                  ← User/Tour/Lead/Property (NUEVO SCHEMA)
+│   │   ├── models_backup.py           ← Backup schema anterior
 │   │   ├── database.py                ← get_db function
 │   │   └── vocaria/
-│   │       └── auth.py                ← JWT + bcrypt functions
-│   └── requirements.txt               ← Dependencias Python
+│   │       └── auth.py                ← JWT + bcrypt + int(user_id) fix
+│   └── requirements.txt               ← Dependencias Python + email-validator
 │
 ├── frontend/                          ← FRONTEND REACT + DESIGN SYSTEM
 │   ├── .env                          ← VITE_API_URL=http://127.0.0.1:8001
@@ -66,7 +67,7 @@
 │   │   │   └── design-system.css     ← COMPLETE design system implementado
 │   │   ├── index.css                 ← Import design system
 │   │   ├── components/
-│   │   │   └── auth/                 ← NUEVO: Reusable auth components
+│   │   │   └── auth/                 ← Reusable auth components
 │   │   │       ├── AuthCard.tsx      ← Professional card component
 │   │   │       ├── AuthButton.tsx    ← Premium button system
 │   │   │       ├── AuthInput.tsx     ← Enhanced input component
@@ -78,7 +79,7 @@
 │   │   ├── pages/
 │   │   │   ├── LoginPage.tsx         ← PREMIUM: Professional aesthetic
 │   │   │   └── RegisterPage.tsx      ← PREMIUM: Matching design
-│   │   ├── features/                 ← 7 páginas dashboard con branding
+│   │   ├── features/                 ← 7 páginas dashboard (READY PARA DATOS REALES)
 │   │   │   ├── dashboard/
 │   │   │   ├── tours/
 │   │   │   ├── leads/
@@ -136,6 +137,30 @@ curl -X POST http://127.0.0.1:8001/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"juan2@vocaria.com","password":"test123"}'
 
+# NUEVO: Test endpoints inmobiliarios
+TOKEN=$(curl -s -X POST http://127.0.0.1:8001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"juan2@vocaria.com","password":"test123"}' | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
+
+# Crear tour
+curl -X POST http://127.0.0.1:8001/api/tours \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"Demo Apartment CABA","matterport_model_id":"SxQL3iGyoDo"}'
+
+# Listar tours
+curl -X GET http://127.0.0.1:8001/api/tours \
+  -H "Authorization: Bearer $TOKEN"
+
+# Crear lead
+curl -X POST http://127.0.0.1:8001/api/leads \
+  -H "Content-Type: application/json" \
+  -d '{"tour_id":1,"email":"prospecto@test.com","phone":"+5491123456789","room_context":{"roomName":"Living Room","area_m2":25}}'
+
+# Ver leads de tour
+curl -X GET http://127.0.0.1:8001/api/tours/1/leads \
+  -H "Authorization: Bearer $TOKEN"
+
 # Verificar design system
 # En DevTools console:
 getComputedStyle(document.documentElement).getPropertyValue('--primary')
@@ -157,7 +182,7 @@ open http://127.0.0.1:8001/docs
 # 2. Commit y push
 cd /Users/juan/Vocaria
 git add .
-git commit -m "feat: [descripción específica]"
+git commit -m "feat: [descripción específica de los cambios]"
 git push
 
 # 3. Actualizar status file
@@ -174,105 +199,89 @@ deactivate
 
 ---
 
-## 🎓 **LECCIONES APRENDIDAS - DESIGN SYSTEM MASTERY**
+## 🎓 **LECCIONES APRENDIDAS - DATABASE MIGRATION MASTERY**
 
 ### **✅ LO QUE FUNCIONÓ BRILLANTEMENTE:**
 
-1. **Design System Progressive Approach:**
-   - ✅ **Foundation first:** CSS variables antes que components
-   - ✅ **Functional baseline:** Working code antes que pretty
-   - ✅ **Component extraction:** Después de functional, extraer patterns
-   - ✅ **Iterative refinement:** Fix → test → improve → commit
+1. **Progressive Database Migration:**
+   - ✅ **Backup safety net:** Database backup antes de cambios críticos
+   - ✅ **Schema evolution:** Mantener datos anteriores + agregar nuevos modelos
+   - ✅ **Incremental testing:** Probar cada modelo y endpoint por separado
+   - ✅ **Type conversion fixes:** Diagnóstico preciso de errores SQL
 
-2. **Problem-Solving Methodology:**
-   - ✅ **Specific error diagnosis:** Console errors = specific solutions
-   - ✅ **Rollback strategy:** Git checkout específico en lugar de panic
-   - ✅ **Incremental fixes:** Un problema a la vez
-   - ✅ **Validation loops:** Test inmediato después de cada fix
+2. **API Development Methodology:**
+   - ✅ **Model-first approach:** Definir modelos antes que endpoints
+   - ✅ **Import resolution:** Solucionar metadata conflicts inmediatamente
+   - ✅ **Auth compatibility:** Mantener sistema auth funcionando durante migración
+   - ✅ **End-to-end validation:** Probar flujo completo usuario → tours → leads
 
-3. **Windsurf AI Collaboration:**
-   - ✅ **Clear problem description:** Error logs + expected outcome
-   - ✅ **Context preservation:** Estructura de archivos en prompts
-   - ✅ **Rollback instructions:** Específico qué conservar vs. revertir
-   - ✅ **Success validation:** Describir exactly cómo debe verse
+3. **Error Resolution Strategy:**
+   - ✅ **Specific error diagnosis:** `integer = character varying` → int(user_id)
+   - ✅ **Dependency management:** email-validator installation
+   - ✅ **SQLAlchemy troubleshooting:** metadata reserved word → lead_data
+   - ✅ **Quick rollback capability:** Backup + git tags ready
 
 ### **❌ ERRORES SUPERADOS:**
 
-1. **Component Architecture Pitfalls:**
-   - ❌ Custom components sin proper TypeScript types → Import errors
-   - ❌ Over-engineering initial approach → Complexity breakdown
-   - ✅ **Solución:** Start simple → extract patterns → enhance gradually
+1. **Database Schema Conflicts:**
+   - ❌ SQLAlchemy reserved words (metadata) → Runtime errors
+   - ❌ Type mismatches (int vs varchar) → SQL operator errors
+   - ✅ **Solución:** Systematic testing + specific error fixes
 
-2. **Design System Implementation:**
-   - ❌ CSS classes conflicts con existing styling → Layout breaks
-   - ❌ All-at-once changes → Hard to debug specific issues
-   - ✅ **Solución:** Layer by layer implementation + frequent commits
+2. **API Integration Issues:**
+   - ❌ Missing dependencies (email-validator) → Import failures
+   - ❌ JWT user_id as string vs DB integer → Query failures
+   - ✅ **Solución:** Step-by-step dependency resolution + type casting
 
-3. **Styling Strategy:**
-   - ❌ Pure custom CSS approach → Maintenance complexity
-   - ❌ Pure utility approach → No reusability
-   - ✅ **Solución:** Hybrid approach: utilities + component abstractions
+3. **Model Import Strategy:**
+   - ❌ Direct replacement of working models → Broke existing functionality
+   - ❌ Incomplete import updates → Model loading failures
+   - ✅ **Solución:** Preserve working auth + progressive model evolution
 
-### **🎯 PERFECTED PROMPT TEMPLATE:**
+### **🎯 PERFECTED MIGRATION TEMPLATE:**
 
 ```
-CONTEXTO COMPLETO:
-- Proyecto: Vocaria SaaS inmobiliario - Premium auth flow completado
-- Estado: Design system stable + auth components working perfectly
-- Backend: FastAPI (puerto 8001) + PostgreSQL funcionando
-- Frontend: React + Antd + Tailwind + Custom Design System
-- Auth: JWT tokens funcionando (juan2@vocaria.com/test123)
-- Components: AuthCard, AuthButton, AuthInput stable y functional
+CONTEXTO MIGRACIÓN:
+- Proyecto: Vocaria SaaS inmobiliario - Migración database schema
+- Estado inicial: [Current working schema]
+- Objetivo: [Target schema evolution]
+- Safety measures: [Backup strategy + rollback plan]
 
-OBJETIVO: [Específico y medible]
+MIGRATION PLAN:
+1. Create backup: [Specific backup command]
+2. New models: [Model definitions with relationships]
+3. Migration script: [SQL DDL statements]
+4. Import updates: [File-specific import changes]
+5. Testing strategy: [Endpoint validation sequence]
 
-ESTADO ACTUAL:
-- ✅ Auth flow: LoginPage + RegisterPage premium y functional
-- ✅ Design system: CSS variables + component library working
-- ✅ No TypeScript errors: Import/export architecture stable
-- 🎯 Próximo: [Specific next goal]
+VALIDATION STEPS:
+- [ ] Models import without errors
+- [ ] Database migration applies successfully
+- [ ] Auth system remains functional
+- [ ] New endpoints respond correctly
+- [ ] End-to-end user flow works
 
-ARCHIVOS RELEVANTES:
-- [Ubicación exacta con path completo]
-
-CONSTRAINTS:
-- Mantener funcionalidad existente que está working perfectly
-- [Other specific constraints]
-
-VALIDACIÓN:
-- [Specific test steps to verify success]
-
-APPROACH:
-- [Preferred strategy: incremental vs. full replacement]
+ROLLBACK PLAN:
+- Database: [Backup restore command]
+- Code: [Git rollback strategy]
+- Dependencies: [Package restoration]
 ```
 
 ---
 
 ## 🚀 **PRÓXIMOS PASOS ESTRATÉGICOS**
 
-### **🎯 FASE 3: DATOS INMOBILIARIOS REALES (Próxima Sesión)**
+### **🎯 FASE 3B: FRONTEND DATA INTEGRATION (Próxima Sesión)**
 
-**Tiempo estimado:** 90-120 minutos total
+**Tiempo estimado:** 45-60 minutos
 
-**Sesión 5A: Evolución Database Schema (45-60 min)**
-- **Task:** Migrar de User/Conversation/Message → User/Tour/Lead/Property
-- **Ubicación:** `vocaria/backend/src/models.py`
-- **Database:** Crear migrations para nuevo schema inmobiliario
-- **Testing:** Verificar tablas + relationships funcionando
-- **Entregable:** Database schema inmobiliario completo
+**Objetivo:** Conectar dashboard features con APIs inmobiliarias reales
 
-**Sesión 5B: API Endpoints Inmobiliarios (30-45 min)**
-- **Task:** Crear endpoints REST para /api/tours, /api/leads, /api/properties
-- **Ubicación:** `vocaria/backend/main.py`
-- **Testing:** CRUD operations con curl commands
-- **Entregable:** API inmobiliaria funcionando end-to-end
-
-**Sesión 5C: Frontend Data Integration (45-60 min)**
-- **Task:** Conectar dashboard features con APIs inmobiliarias reales
-- **Ubicación:** `frontend/src/features/`
-- **Integration:** Usar existing auth + design system
-- **Testing:** Dashboard mostrando datos reales tours/leads
-- **Entregable:** SaaS inmobiliario complete end-to-end
+**Sesión 6: Frontend Dashboard Inmobiliario (45-60 min)**
+- **Task:** Actualizar components en `frontend/src/features/` con datos reales
+- **Integration:** Tours list, leads management, analytics con API calls
+- **Testing:** Dashboard mostrando tours + leads reales del usuario
+- **Entregable:** SaaS inmobiliario complete frontend + backend
 
 ### **🎯 FASE 4: Widget Embebible (Futuro)**
 - React widget embebible
@@ -290,7 +299,48 @@ APPROACH:
 
 ## 🗃️ **INFORMACIÓN TÉCNICA COMPLETA**
 
-### **Design System Specifications:**
+### **Database Schema Inmobiliario (NUEVO):**
+```sql
+-- NUEVO SCHEMA INMOBILIARIO
+users: id, username, email, hashed_password, is_active, created_at
+       company_name, phone, subscription_status (NUEVOS CAMPOS)
+
+tours: id, owner_id (FK), name, matterport_model_id, agent_id, 
+       agent_objective, is_active, room_data (JSONB), created_at, updated_at
+
+leads: id, tour_id (FK), email, phone, room_context (JSONB), 
+       lead_data (JSONB), created_at
+
+properties: id, tour_id (FK), address, price, bedrooms, bathrooms, 
+           area_m2, property_type, description, created_at
+
+-- RELACIONES
+User → Tours (1:N)
+Tour → Leads (1:N)
+Tour → Property (1:1)
+
+-- USUARIO FUNCIONAL: juan2@vocaria.com / test123 (ID: 4)
+-- TOUR DEMO: "Demo Apartment CABA" (Matterport: SxQL3iGyoDo)
+-- LEAD DEMO: prospecto@test.com (+5491123456789, Living Room 25m²)
+```
+
+### **API Endpoints Inmobiliarios (FUNCIONANDO):**
+```python
+# Tours Management
+POST /api/tours - Create tour (authenticated)
+GET /api/tours - List user tours (authenticated)
+
+# Lead Capture  
+POST /api/leads - Create lead (public for widget)
+GET /api/tours/{tour_id}/leads - Get tour leads (owner only)
+
+# Auth System (preserved)
+POST /api/auth/login - User authentication
+POST /api/auth/register - User registration
+GET /health - System health check
+```
+
+### **Design System Specifications (preserved):**
 ```css
 /* Core Design Tokens */
 --primary: #2563EB;           /* Professional blue */
@@ -317,7 +367,7 @@ APPROACH:
 .trust-indicators: Professional badges
 ```
 
-### **Component Architecture:**
+### **Component Architecture (preserved):**
 ```typescript
 // Reusable Components Structure
 src/components/auth/
@@ -333,28 +383,17 @@ import { AuthCard, AuthButton, AuthInput } from '@/components/auth';
 
 ### **Backend Configuration:**
 - **Puerto:** 8001 (optimizado para desarrollo)
-- **Database:** PostgreSQL async con pgvector
-- **Auth:** JWT + bcrypt password hashing secure
+- **Database:** PostgreSQL async con nuevas tablas inmobiliarias
+- **Auth:** JWT + bcrypt + int(user_id) fix implementado
 - **CORS:** Configurado para localhost:3000
-- **API Docs:** Auto-generadas en /docs
+- **API Docs:** Auto-generadas en /docs con nuevos endpoints
 
 ### **Frontend Configuration:**
 - **Puerto:** 3000 (npm run dev)
-- **API Integration:** Axios + React Query
+- **API Integration:** Axios + React Query (ready para nuevos endpoints)
 - **Styling:** Antd + Tailwind + Custom Design System
 - **Auth Flow:** Context + localStorage + JWT tokens
-- **Components:** Reusable auth system established
-
-### **Database Schema Actual:**
-```sql
--- Current Tables (will evolve to inmobiliario)
-users: id, username, email, hashed_password, is_active, created_at
-conversations: id, user_id, title, created_at, updated_at  
-messages: id, conversation_id, content, is_user, created_at
-
--- Usuario funcional
-juan2@vocaria.com / test123 (ID: 4)
-```
+- **Dashboard Features:** Ready para integración con APIs inmobiliarias
 
 ### **Environment Variables:**
 ```bash
@@ -380,19 +419,24 @@ VITE_API_URL=http://127.0.0.1:8001
 - [x] ✅ Error handling robusto
 - [x] ✅ Testing workflow automatizado
 - [x] ✅ GitHub repository sincronizado
-- [x] ✅ **Design system foundation implementado**
-- [x] ✅ **CSS variables y tokens funcionando**
-- [x] ✅ **Antd theme customizado profesional**
-- [x] ✅ **Component architecture establecida**
-- [x] ✅ **LoginPage premium aesthetic**
-- [x] ✅ **RegisterPage matching design**
-- [x] ✅ **TypeScript errors resueltos**
-- [x] ✅ **Professional spacing + UX polish**
-- [x] ✅ **Trust indicators implemented**
-- [x] ✅ **Auth flow business-ready**
-- [ ] 🎯 **Database schema inmobiliario** (Fase 3A)
-- [ ] 🎯 **API endpoints inmobiliarios** (Fase 3B)
-- [ ] 🎯 **Frontend data integration** (Fase 3C)
+- [x] ✅ Design system foundation implementado
+- [x] ✅ CSS variables y tokens funcionando
+- [x] ✅ Antd theme customizado profesional
+- [x] ✅ Component architecture establecida
+- [x] ✅ LoginPage premium aesthetic
+- [x] ✅ RegisterPage matching design
+- [x] ✅ TypeScript errors resueltos
+- [x] ✅ Professional spacing + UX polish
+- [x] ✅ Trust indicators implemented
+- [x] ✅ Auth flow business-ready
+- [x] ✅ **Database schema inmobiliario completado**
+- [x] ✅ **Migración sin pérdida de datos**
+- [x] ✅ **API endpoints inmobiliarios funcionando**
+- [x] ✅ **Tours CRUD implementation**
+- [x] ✅ **Leads capture system**
+- [x] ✅ **End-to-end testing inmobiliario**
+- [x] ✅ **SaaS backend completamente funcional**
+- [ ] 🎯 **Frontend dashboard data integration** (Fase 3B)
 - [ ] 🎯 Widget embebible (Fase 4)
 - [ ] 🎯 Production deployment (Fase 5)
 
@@ -400,51 +444,59 @@ VITE_API_URL=http://127.0.0.1:8001
 
 ## 📅 **Última Sesión de Trabajo**
 
-**Fecha:** 1 Junio 2025  
+**Fecha:** 2 Junio 2025  
 **Duración:** ~90 minutos  
-**Objetivo:** Premium auth flow + design system implementation
+**Objetivo:** Database schema inmobiliario + API endpoints
 
 **✅ COMPLETADO:**
-- [x] Design system completo con CSS variables y tokens
-- [x] Component architecture: AuthCard, AuthButton, AuthInput, TrustIndicators
-- [x] LoginPage premium aesthetic con professional spacing
-- [x] RegisterPage matching design y functionality
-- [x] TypeScript import/export errors completamente resueltos
-- [x] Header styling optimizado con branding básico
-- [x] Trust indicators professional positioning
-- [x] Auth flow end-to-end testing y validation
-- [x] Multiple rollback situations manejadas exitosamente
+- [x] Database migration User/Conversation/Message → User/Tour/Lead/Property
+- [x] Nuevas tablas inmobiliarias creadas y relacionadas
+- [x] Users table actualizada con campos inmobiliarios
+- [x] Migration script ejecutado exitosamente
+- [x] API endpoints inmobiliarios implementados y funcionando
+- [x] Auth system compatible con nuevos modelos
+- [x] Type conversion bug fixed (int(user_id))
+- [x] End-to-end testing completo: tours + leads
+- [x] Dependencies resolved (email-validator)
+- [x] SQLAlchemy conflicts resolved (metadata → lead_data)
 
 **🔧 CHALLENGES SUPERADOS:**
-- Import/export component architecture conflicts → Fixed con proper TypeScript types
-- CSS custom classes conflicts → Resolved con hybrid approach
-- Header styling breakdown → Rollback específico successful
-- Component over-engineering → Simplified to functional + beautiful
-- Layout spacing issues → Progressive refinement approach
-- Multiple styling iterations → Stable final version achieved
+- Database schema conflicts → Progressive migration approach
+- SQLAlchemy reserved words → Systematic renaming
+- Type mismatch errors → Specific int() casting
+- Import dependencies → Step-by-step resolution
+- Auth compatibility → Preserved existing JWT flow
+- API endpoint testing → Comprehensive validation
 
 **🎯 PRÓXIMA SESIÓN:**
-- **Objetivo principal:** Fase 3A - Database schema inmobiliario (User/Tour/Lead/Property)
+- **Objetivo principal:** Fase 3B - Frontend dashboard data integration
 - **Tiempo estimado:** 45-60 min
-- **Preparación:** Backend + frontend stable y funcionando
-- **Approach:** Migrations + models + testing nuevo schema
+- **Preparación:** Backend inmobiliario functioning perfectly
+- **Approach:** Connect existing dashboard features with real estate APIs
 
 **💡 INSIGHTS/APRENDIZAJES CRÍTICOS:**
-- Design system success = Foundation first + progressive enhancement
-- Component extraction después de functional = menos debugging
-- Specific error diagnosis + incremental fixes = faster resolution
-- Git rollback específico >> panic debugging
-- Hybrid styling approach (utilities + components) = más maintainable
-- Frequent commits = safety net durante complex changes
-- Professional auth flow = immediate credibility boost
-- TypeScript types upfront = less import/export issues later
+- Database migration success = Backup first + incremental changes
+- API development = Model-first approach + systematic testing
+- Error resolution = Specific diagnosis + targeted fixes
+- Type safety = Critical for SQL query compatibility
+- Schema evolution = Preserve working + add new functionality
+- End-to-end validation = Essential for complex integrations
+- Progressive migration = Less risky than big-bang approach
+- Safety nets = Database backups + git tags enable confident iteration
 
 **🏆 BUSINESS IMPACT ACHIEVED:**
-- Auth flow ready para demostrar a agentes inmobiliarios
-- Professional first impression desde primer contacto
-- Design system foundation para scaling futuro
-- Component reusability establecida para desarrollo eficiente
-- Technical debt minimizado con architecture decisions
+- SaaS inmobiliario backend completamente funcional
+- Agentes pueden crear tours y capturar leads
+- API endpoints ready para widget embebible
+- Database schema escalable para features futuras
+- Foundation established para production deployment
+- Zero downtime migration preservando funcionalidad existente
+
+**📊 DATOS DE PRUEBA CREADOS:**
+- **Tour:** "Demo Apartment CABA" (Matterport: SxQL3iGyoDo)
+- **Lead:** prospecto@test.com (+5491123456789)
+- **Room Context:** Living Room (25 m²)
+- **API Response Time:** Sub-second para todos los endpoints
 
 ---
 
@@ -454,34 +506,39 @@ VITE_API_URL=http://127.0.0.1:8001
 Hola! Continuando desarrollo de Vocaria SaaS inmobiliario.
 
 ESTADO ACTUAL:
-✅ FASE 2.5 COMPLETADA - Premium auth flow + design system
-✅ JWT Authentication funcionando end-to-end
-✅ Backend FastAPI (puerto 8001) + Frontend React (puerto 3000) 
-✅ PostgreSQL con User/Conversation/Message (ready para evolución)
-✅ LoginPage + RegisterPage premium y professional
-✅ Design system: CSS variables + component library working
-✅ AuthCard, AuthButton, AuthInput components estables
-✅ Dashboard con branding aplicado
+✅ FASE 3A COMPLETADA - Database schema inmobiliario + API endpoints
+✅ Backend inmobiliario funcionando: User/Tour/Lead/Property
+✅ API endpoints: POST/GET tours, POST leads, GET leads funcionando
+✅ Auth system compatible con nuevos modelos
+✅ Frontend auth flow preservado y funcionando
+✅ Database: PostgreSQL con tablas inmobiliarias + datos demo
+✅ Testing: Tours + leads end-to-end validated
 
 ESTRUCTURA:
-- Backend: /Users/juan/Vocaria/vocaria/backend/main.py
-- Frontend: /Users/juan/Vocaria/frontend/src/
-- Design System: /Users/juan/Vocaria/frontend/src/styles/design-system.css
-- Components: /Users/juan/Vocaria/frontend/src/components/auth/
-- Repo: https://github.com/Juanisegura2025/Vocaria
+- Backend: /Users/juan/Vocaria/vocaria/backend/ (puerto 8001)
+- Frontend: /Users/juan/Vocaria/frontend/src/ (puerto 3000)
+- Database: PostgreSQL con schema inmobiliario completo
+- API: Tours CRUD + Leads capture completamente funcionales
+- Auth: JWT + bcrypt + premium design system
+
+DATOS DEMO FUNCIONANDO:
+- Usuario: juan2@vocaria.com/test123
+- Tour: "Demo Apartment CABA" (ID: 1, Matterport: SxQL3iGyoDo)
+- Lead: prospecto@test.com (+5491123456789, Living Room 25m²)
 
 OBJETIVO HOY:
-🎯 FASE 3A: Evolución database schema a inmobiliario
-- User/Conversation/Message → User/Tour/Lead/Property
-- Migrations + models + testing
+🎯 FASE 3B: Frontend Dashboard Data Integration
+- Conectar features/dashboard con APIs inmobiliarias reales
+- Tours list, leads management con datos del backend
+- Testing dashboard completo con datos reales
 
 TIEMPO DISPONIBLE: [X minutos]
 
 ARCHIVOS DE CONTEXTO:
 - Por favor revisa mi vocaria_status_update.md para contexto completo
-- Design system completado, ready para business logic
+- Backend inmobiliario ready, frontend dashboard ready para integration
 
-¿Continuamos con Fase 3A - Database Schema Inmobiliario?
+¿Continuamos con Fase 3B - Frontend Dashboard Data Integration?
 ```
 
 ---
@@ -491,42 +548,44 @@ ARCHIVOS DE CONTEXTO:
 ```bash
 # Si algo falla, comandos de emergencia:
 
-# 1. Reset auth pages a working state
+# 1. Reset a working state (Fase 3A completed)
 cd /Users/juan/Vocaria
-git checkout HEAD -- frontend/src/pages/LoginPage.tsx frontend/src/pages/RegisterPage.tsx
+git log --oneline -5  # Ver commits recientes
+git checkout [commit-id]  # Volver a último working state
 
-# 2. Reset design system si hay problemas
-git checkout HEAD -- frontend/src/styles/design-system.css
+# 2. Database restore si necesario
+psql vocaria_dev < backup_before_fase3_20250601_2330.sql
 
-# 3. Reset backend
+# 3. Reset backend inmobiliario
 cd vocaria/backend
-git checkout HEAD -- main.py
+git checkout HEAD -- main.py src/models.py
 export DATABASE_URL="postgresql+asyncpg://vocaria_user:Ciri13to@localhost:5432/vocaria_dev"
 python3 -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 
-# 4. Reset frontend completely
+# 4. Reset frontend
 cd /Users/juan/Vocaria/frontend
 rm -rf node_modules/.vite
 npm run dev
 
-# 5. Test design system
-# En DevTools console:
-getComputedStyle(document.documentElement).getPropertyValue('--primary')
-
-# 6. Full system test
+# 5. Test sistema completo
 cd /Users/juan/Vocaria
 ./test-api.sh
 
-# 7. Auth test
-curl -X POST http://127.0.0.1:8001/api/auth/login \
+# 6. Test APIs inmobiliarias
+TOKEN=$(curl -s -X POST http://127.0.0.1:8001/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"juan2@vocaria.com","password":"test123"}'
+  -d '{"email":"juan2@vocaria.com","password":"test123"}' | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
+
+curl -X GET http://127.0.0.1:8001/api/tours -H "Authorization: Bearer $TOKEN"
+
+# 7. Verificar database schema
+psql vocaria_dev -c "\dt"  # Listar tablas
+psql vocaria_dev -c "SELECT * FROM tours;"  # Ver tours
+psql vocaria_dev -c "SELECT * FROM leads;"  # Ver leads
 ```
 
 ---
 
-**🎯 Última actualización**: 1 Junio 2025 - Premium Auth Flow + Design System Completado  
-**✅ Estado:** PREMIUM FUNCTIONAL - Auth flow business-ready + Design system established  
-**🚀 Próximo hito:** Fase 3 - Database Schema Inmobiliario → SaaS Complete
-
-]
+**🎯 Última actualización**: 2 Junio 2025 - Database Schema Inmobiliario + API Endpoints Completado  
+**✅ Estado:** SAAS INMOBILIARIO BACKEND FUNCTIONAL - Database + APIs ready for frontend integration  
+**🚀 Próximo hito:** Fase 3B - Frontend Dashboard Data Integration → Complete SaaS MVP

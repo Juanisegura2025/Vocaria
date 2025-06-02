@@ -1,44 +1,108 @@
-import { Button, Card, Table, Tag, Space, Input, Row, Col, Avatar, Badge } from 'antd';
-import { Plus, Search, User, Mail, Phone, Home, Calendar, Filter, Download } from 'lucide-react';
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { fetchApi } from '../../api/client';
+import { Button, Card, Table, Tag, Space, Input, Row, Col, Avatar } from 'antd';
+import { Plus, Search, Mail, Phone, Home, Calendar, Filter, Download } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toursService } from '../../services/toursService';
+import type { Lead } from '../../services/toursService';
 
 const { Search: SearchInput } = Input;
+
+interface LeadWithTour extends Lead {
+  status?: 'new' | 'contacted' | 'qualified' | 'converted' | 'unqualified';
+  tour?: {
+    property_id: string;
+    scheduled_time: string;
+  };
+}
 
 const LeadsPage = () => {
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [leads, setLeads] = useState<LeadWithTour[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
-  // Fetch leads data
-  const { data: leads = [], isLoading } = useQuery({
-    queryKey: ['leads'],
-    queryFn: () => fetchApi('/api/leads'),
-  });
+  useEffect(() => {
+    const loadLeads = async () => {
+      try {
+        setLoading(true);
+        // First, get all tours
+        const tours = await toursService.getTours();
+        
+        // Then get leads for each tour and combine them
+        const allLeads: LeadWithTour[] = [];
+        
+        for (const tour of tours) {
+          try {
+            const tourLeads = await toursService.getTourLeads(tour.id);
+            const leadsWithTour = tourLeads.map(lead => ({
+              ...lead,
+              tour: {
+                property_id: tour.property_id,
+                scheduled_time: tour.scheduled_time
+              }
+            }));
+            allLeads.push(...leadsWithTour);
+          } catch (e) {
+            console.warn(`Could not load leads for tour ${tour.id}`, e);
+          }
+        }
+        
+        setLeads(allLeads);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error loading leads');
+        console.error('Error loading leads:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadLeads();
+  }, []);
+  
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchText(e.target.value);
+  };
 
-  const getRandomAvatarColor = (name: string) => {
-    const colors = ['#1890ff', '#52c41a', '#722ed1', '#fa8c16', '#f5222d'];
-    const charCode = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return colors[charCode % colors.length];
+  const getRandomAvatarColor = (email: string) => {
+    if (!email || typeof email !== 'string') {
+      return '#1890ff'; // default color
+    }
+    const colors = ['#1890ff', '#52c41a', '#fa8c16', '#eb2f96', '#13c2c2', '#722ed1'];
+    const index = email.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
+    return colors[index];
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString('es-AR', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return 'Fecha inválida';
+    }
   };
 
   const columns = [
     {
       title: 'Lead',
-      dataIndex: 'name',
+      dataIndex: 'email',
       key: 'name',
-      render: (text: string, record: any) => (
+      render: (email: string, record: LeadWithTour) => (
         <div className="flex items-center">
           <Avatar 
-            style={{ backgroundColor: getRandomAvatarColor(text) }}
+            style={{ backgroundColor: getRandomAvatarColor(email) }}
             className="mr-3"
           >
-            {text.charAt(0).toUpperCase()}
+            {email ? email.charAt(0).toUpperCase() : '?'}
           </Avatar>
           <div>
-            <div className="font-medium">{text}</div>
-            <div className="text-xs text-gray-500">{record.email}</div>
+            <div className="font-medium">{record.name || 'Lead sin nombre'}</div>
+            <div className="text-xs text-gray-500">{email || 'Sin email'}</div>
           </div>
         </div>
       ),
@@ -46,7 +110,7 @@ const LeadsPage = () => {
     {
       title: 'Contacto',
       key: 'contact',
-      render: (record: any) => (
+      render: (record: LeadWithTour) => (
         <div className="space-y-1">
           <div className="flex items-center text-sm">
             <Mail size={14} className="mr-1 text-gray-500" />
@@ -67,12 +131,11 @@ const LeadsPage = () => {
     },
     {
       title: 'Tour',
-      dataIndex: 'tour',
       key: 'tour',
-      render: (tour: any) => (
-        <div className="flex items-center">
+      render: (record: LeadWithTour) => (
+        <div className="flex items-center text-sm">
           <Home size={14} className="mr-1 text-gray-500" />
-          {tour?.name || 'No especificado'}
+          {record.tour ? `Propiedad #${record.tour.property_id}` : 'Sin tour asignado'}
         </div>
       ),
     },
@@ -106,7 +169,7 @@ const LeadsPage = () => {
       render: (date: string) => (
         <div className="flex items-center text-sm">
           <Calendar size={14} className="mr-1 text-gray-500" />
-          {new Date(date).toLocaleDateString()}
+          {formatDate(date)}
         </div>
       ),
       sorter: (a: any, b: any) => 
@@ -115,7 +178,7 @@ const LeadsPage = () => {
     {
       title: 'Acciones',
       key: 'actions',
-      render: (_: any, record: any) => (
+      render: () => (
         <Space size="middle">
           <Button 
             type="link" 
@@ -135,11 +198,32 @@ const LeadsPage = () => {
     },
   ];
 
-  const filteredLeads = leads.filter((lead: any) =>
-    lead.name.toLowerCase().includes(searchText.toLowerCase()) ||
-    lead.email.toLowerCase().includes(searchText.toLowerCase()) ||
-    (lead.phone && lead.phone.includes(searchText))
-  );
+  // Safe string includes helper
+  const safeStringIncludes = (str: any, search: string): boolean => {
+    return str && typeof str === 'string' && str.toLowerCase().includes(search.toLowerCase());
+  };
+
+  // Safe filter function
+  const safeFilter = (items: LeadWithTour[], searchValue: string, statusFilterValue: string | null) => {
+    if (!Array.isArray(items)) return [];
+    
+    return items.filter(lead => {
+      if (!lead) return false;
+      
+      const searchLower = (searchValue || '').toLowerCase();
+      const matchesSearch = 
+        safeStringIncludes(lead.name, searchLower) ||
+        safeStringIncludes(lead.email, searchLower) ||
+        safeStringIncludes(lead.phone, searchLower) ||
+        (lead.tour?.property_id && safeStringIncludes(lead.tour.property_id, searchLower));
+        
+      const matchesStatus = statusFilterValue ? lead.status === statusFilterValue : true;
+      
+      return matchesSearch && matchesStatus;
+    });
+  };
+
+  const filteredLeads = safeFilter(leads, searchText || '', statusFilter);
 
   return (
     <div className="space-y-6">
@@ -169,7 +253,7 @@ const LeadsPage = () => {
               <SearchInput
                 placeholder="Buscar leads..."
                 prefix={<Search size={16} className="text-gray-400" />}
-                onChange={(e) => setSearchText(e.target.value)}
+                onChange={handleSearch}
                 allowClear
                 className="w-full"
               />
@@ -187,17 +271,23 @@ const LeadsPage = () => {
           </Row>
         </div>
 
-        <Table
-          columns={columns}
-          dataSource={filteredLeads}
-          rowKey="id"
-          loading={isLoading}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: true,
-            showTotal: (total) => `Total ${total} leads`,
-          }}
-        />
+        {error ? (
+          <div className="p-4 text-red-600">
+            Error al cargar los leads: {error}
+          </div>
+        ) : (
+          <Table
+            columns={columns}
+            dataSource={filteredLeads}
+            rowKey="id"
+            loading={loading}
+            pagination={{
+              pageSize: 10,
+              showSizeChanger: true,
+              showTotal: (total) => `Total ${total} leads`,
+            }}
+          />
+        )}
       </Card>
     </div>
   );
