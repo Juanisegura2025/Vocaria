@@ -1,4 +1,4 @@
-# Vocaria - Estado Actual y Metodología de Trabajo v2.0
+# Vocaria - Estado Actual y Metodología de Trabajo v2.1
 
 **GitHub Repository:** https://github.com/Juanisegura2025/Vocaria
 
@@ -14,27 +14,28 @@
 
 ---
 
-## 🎉 **ESTADO ACTUAL: MVP FUNCIONAL COMPLETO**
+## 🎉 **ESTADO ACTUAL: DESIGN SYSTEM FOUNDATION COMPLETO**
 
-### ✅ **SESIÓN 2 COMPLETADA EXITOSAMENTE (JWT Authentication)**
+### ✅ **SESIÓN 3 COMPLETADA EXITOSAMENTE (Design System Foundation)**
 
 **🏆 LOGROS PRINCIPALES:**
-- **✅ JWT Authentication Real** - Login/logout funcionando con tokens reales
-- **✅ Backend + Frontend Integrado** - Comunicación completa entre React y FastAPI
-- **✅ Dashboard Profesional** - UI completa con 7 páginas funcionales
-- **✅ Security Implementada** - bcrypt + JWT + rutas protegidas
-- **✅ Testing Workflow** - Script automatizado para validar API
+- **✅ Design System Completo** - CSS variables, tokens, y component classes implementados
+- **✅ Antd Theme Customizado** - Branding profesional aplicado a todos los components
+- **✅ Tailwind Integration** - Extended con custom design tokens
+- **✅ LoginPage Fixed** - Layout funcional con styling professional
+- **✅ Dashboard Branding** - Ya aplicado desde sesión anterior
 
 **🔧 STACK TECNOLÓGICO FUNCIONANDO:**
 - **Backend:** FastAPI + PostgreSQL + SQLAlchemy async + JWT + bcrypt
-- **Frontend:** React + TypeScript + Antd + React Router + Axios
+- **Frontend:** React + TypeScript + Antd + Tailwind + Design System
+- **Design:** CSS variables + Tailwind utilities + Antd theming
 - **Database:** PostgreSQL con pgvector extension
 - **Auth:** JWT tokens + bcrypt password hashing
 - **Testing:** Script automatizado + health checks
 
 ---
 
-## 📁 **ESTRUCTURA DE ARCHIVOS DETALLADA**
+## 📁 **ESTRUCTURA DE ARCHIVOS ACTUALIZADA**
 
 ```
 /Users/juan/Vocaria/                    ← DIRECTORIO PRINCIPAL
@@ -57,15 +58,18 @@
 │   ├── package.json                  ← Dependencias Node + scripts
 │   ├── src/
 │   │   ├── main.tsx                  ← Entry point
-│   │   ├── App.tsx                   ← Router + AuthProvider
+│   │   ├── App.tsx                   ← Router + AuthProvider + Enhanced Theme
+│   │   ├── styles/
+│   │   │   └── design-system.css     ← NUEVO: Complete design system
+│   │   ├── index.css                 ← Import design system
 │   │   ├── contexts/
 │   │   │   └── AuthContext.tsx       ← Context real con authService
 │   │   ├── services/
 │   │   │   └── authService.ts        ← API calls con axios
 │   │   ├── pages/
-│   │   │   ├── LoginPage.tsx         ← Login funcional
+│   │   │   ├── LoginPage.tsx         ← ACTUALIZADO: Fixed layout + styling
 │   │   │   └── RegisterPage.tsx      ← Registro funcional
-│   │   ├── features/                 ← 7 páginas dashboard
+│   │   ├── features/                 ← 7 páginas dashboard con styling aplicado
 │   │   │   ├── dashboard/
 │   │   │   ├── tours/
 │   │   │   ├── leads/
@@ -76,7 +80,7 @@
 │   │       └── MainLayout.tsx        ← Layout con sidebar
 │   └── dist/                         ← Build production
 │
-└── docs/                             ← Documentación PRD
+└── docs/                             ← Documentación PRD + Design System
 ```
 
 ---
@@ -123,7 +127,12 @@ curl -X POST http://127.0.0.1:8001/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"juan2@vocaria.com","password":"test123"}'
 
-# Abrir frontend
+# Verificar design system
+# En DevTools console:
+getComputedStyle(document.documentElement).getPropertyValue('--primary')
+# Debería devolver: #2563EB
+
+# Abrir aplicación
 open http://localhost:3000
 
 # Backend docs
@@ -155,85 +164,112 @@ deactivate
 
 ---
 
-## 🎓 **LECCIONES APRENDIDAS - MEJORES PRÁCTICAS**
+## 🎓 **LECCIONES APRENDIDAS - MEJORES PRÁCTICAS ACTUALIZADAS**
 
 ### **✅ LO QUE FUNCIONÓ MUY BIEN:**
 
-1. **Workflow Anti-Errores:**
-   - ✅ **Prompts específicos:** Incluir ubicaciones exactas de archivos
-   - ✅ **Testing incremental:** Probar cada paso antes de continuar
-   - ✅ **Script automatizado:** `test-api.sh` para validar API rápidamente
-   - ✅ **Variables de entorno consistentes:** `.env` en cada directorio
-   - ✅ **Commits frecuentes:** Un commit por funcionalidad completada
+1. **Design System Approach:**
+   - ✅ **CSS Variables primero:** Foundation sólida antes de components
+   - ✅ **Antd + Tailwind combo:** Best of both worlds
+   - ✅ **Inline styles fallback:** Cuando custom classes fallan
+   - ✅ **Professional color palette:** #2563EB + grays + semantic colors
 
-2. **Comunicación con Windsurf:**
-   - ✅ **Contexto completo:** Incluir estructura de archivos en prompts
-   - ✅ **Objetivos claros:** Un objetivo específico por prompt
-   - ✅ **Validación inmediata:** Verificar resultado antes de siguiente paso
-   - ✅ **Error handling:** Copiar errores completos para diagnóstico
+2. **Workflow Anti-Errores:**
+   - ✅ **Functional first, pretty second:** Evita layout breaks
+   - ✅ **Commits frecuentes:** Antes de major changes
+   - ✅ **Testing incremental:** Validar cada paso
+   - ✅ **DevTools validation:** Verificar CSS variables funcionando
 
-3. **Flujo de Desarrollo:**
-   - ✅ **Backend primero:** Establecer API sólida antes de frontend
-   - ✅ **Pasos pequeños:** Crear, probar, commit, siguiente paso
-   - ✅ **Documentación:** Mantener este status file actualizado
+3. **Comunicación con Windsurf:**
+   - ✅ **Problem diagnosis:** Específico sobre qué está roto
+   - ✅ **Fallback strategies:** Siempre tener plan B
+   - ✅ **CSS debugging:** Console commands para verificar
+   - ✅ **Iterative refinement:** Functional → good → great
 
 ### **❌ ERRORES A EVITAR:**
 
-1. **Errores de Importación:**
-   - ❌ No especificar paths relativos correctos en prompts
-   - ❌ Crear archivos en ubicaciones incorrectas
-   - ✅ **Solución:** Siempre incluir estructura de directorios en prompts
+1. **Design System Pitfalls:**
+   - ❌ Custom CSS classes sin testing → layout breaks
+   - ❌ Demasiados layers de abstraction → confusión
+   - ✅ **Solución:** Start simple, add complexity gradual
 
-2. **Errores de Environment:**
-   - ❌ Variables de entorno no cargadas correctamente
-   - ❌ Ejecutar desde directorio incorrecto
-   - ✅ **Solución:** Script de inicio con export explícito
+2. **Styling Conflicts:**
+   - ❌ Mixing approaches sin plan → inconsistency
+   - ❌ Overriding Antd sin entender → broken components
+   - ✅ **Solución:** Antd theme + Tailwind utilities + inline styles como backup
 
-3. **Errores de Testing:**
-   - ❌ No probar cada paso antes de continuar
-   - ❌ Asumir que funciona sin verificar
-   - ✅ **Solución:** Test automatizado después de cada cambio
+3. **Time Management:**
+   - ❌ Perfectionism on styling → tiempo perdido
+   - ❌ No commit antes de major changes → pérdida de progress
+   - ✅ **Solución:** Functional milestones + frequent commits
 
-### **🎯 TEMPLATE MEJORADO PARA PROMPTS:**
+### **🎯 TEMPLATE ACTUALIZADO PARA PROMPTS:**
 
 ```
 CONTEXTO COMPLETO:
 - Proyecto: Vocaria SaaS inmobiliario
-- Backend: FastAPI en /Users/juan/Vocaria/vocaria/backend/main.py (puerto 8001)
-- Frontend: React en /Users/juan/Vocaria/frontend/src/
-- Database: PostgreSQL vocaria_dev con User/Conversation/Message
-- Auth: JWT tokens funcionando con juan2@vocaria.com/test123
+- Estado: MVP funcional + Design system foundation completado
+- Backend: FastAPI (puerto 8001) funcionando
+- Frontend: React + Antd + Tailwind + Design System
+- Auth: JWT tokens funcionando (juan2@vocaria.com/test123)
+- Design System: CSS variables (#2563EB) + Tailwind integration
 
 OBJETIVO: [Específico]
 
-ARCHIVOS A MODIFICAR:
+ESTADO ACTUAL:
+- ✅ LoginPage: Functional con basic styling
+- ✅ Dashboard: Professional branding aplicado
+- ✅ Design tokens: Implementados y funcionando
+- 🎯 Próximo: [RegisterPage/Premium polish/Fase 3]
+
+ARCHIVOS RELEVANTES:
 - [Ubicación exacta del archivo]
 
 VALIDACIÓN:
 - [Cómo probar que funciona]
+
+APPROACH:
+- Tailwind utilities + Antd components + inline styles si necesario
+- Evitar custom CSS classes hasta debug completo
 ```
 
 ---
 
 ## 🚀 **PRÓXIMOS PASOS PRIORIZADOS**
 
-### **🎯 FASE 3: Datos Reales Inmobiliarios (Próxima Sesión)**
+### **🎯 FASE 2.5: COMPLETION - Auth Pages Polish (Sesión Actual)**
+
+**Tiempo restante:** ~45 minutos de 1 hora planificada
+
+**Sesión 3B: RegisterPage (15-20 min)**
+- **Task:** Crear RegisterPage matching LoginPage aesthetic
+- **Ubicación:** `frontend/src/pages/RegisterPage.tsx`
+- **Approach:** Copy LoginPage structure + additional fields
+- **Entregable:** Auth flow completo y consistent
+
+**Sesión 3C: LoginPage Premium Upgrade (25-30 min)**
+- **Task:** Mejorar LoginPage para look más premium
+- **Focus:** Better spacing, card elegance, professional feel
+- **Approach:** Enhanced but stable styling
+- **Entregable:** WOW factor en first impression
+
+### **🎯 FASE 3: Datos Reales Inmobiliarios (Próximas Sesiones)**
 
 **Objetivo:** Reemplazar datos mock con datos reales inmobiliarios
 
-**Sesión 3A: Evolución de Modelos (45-60 min)**
+**Sesión 4A: Evolución de Modelos (45-60 min)**
 - **Task:** Crear modelos Tour/Lead/Property en lugar de Conversation/Message
 - **Ubicación:** `vocaria/backend/src/models.py`
 - **Testing:** Verificar nuevas tablas en PostgreSQL
 - **Entregable:** DB schema inmobiliario funcionando
 
-**Sesión 3B: API Endpoints Inmobiliarios (30-45 min)**
+**Sesión 4B: API Endpoints Inmobiliarios (30-45 min)**
 - **Task:** Crear endpoints /api/tours, /api/leads, /api/properties
 - **Ubicación:** `vocaria/backend/main.py`
 - **Testing:** CRUD completo con curl commands
 - **Entregable:** API inmobiliaria funcionando
 
-**Sesión 3C: Frontend con Datos Reales (45-60 min)**
+**Sesión 4C: Frontend con Datos Reales (45-60 min)**
 - **Task:** Conectar dashboard con APIs inmobiliarias
 - **Ubicación:** `frontend/src/features/`
 - **Testing:** Dashboard mostrando tours y leads reales
@@ -251,7 +287,14 @@ VALIDACIÓN:
 
 ---
 
-## 🗃️ **INFORMACIÓN TÉCNICA CLAVE**
+## 🗃️ **INFORMACIÓN TÉCNICA ACTUALIZADA**
+
+### **Design System Configuration:**
+- **CSS Variables:** Complete token system en `src/styles/design-system.css`
+- **Primary Color:** #2563EB (Professional blue)
+- **Font:** Inter (loaded via @fontsource/inter)
+- **Spacing:** 8px grid system (Tailwind compatible)
+- **Components:** .auth-card, .btn-primary, .stat-card, etc.
 
 ### **Backend Configuration:**
 - **Puerto:** 8001 (cambiado de 8000 para evitar conflictos)
@@ -264,7 +307,8 @@ VALIDACIÓN:
 - **Puerto:** 3000 (npm run dev)
 - **API URL:** http://127.0.0.1:8001 (en .env)
 - **Auth:** Context + authService + localStorage tokens
-- **UI:** Antd + Tailwind + TypeScript + React Router
+- **UI:** Antd + Tailwind + Custom Design System
+- **Theme:** Enhanced ConfigProvider con Vocaria branding
 
 ### **Database Schema Actual:**
 ```sql
@@ -286,6 +330,22 @@ DATABASE_URL=postgresql+asyncpg://vocaria_user:Ciri13to@localhost:5432/vocaria_d
 VITE_API_URL=http://127.0.0.1:8001
 ```
 
+### **Design System Tokens:**
+```css
+/* Core Colors */
+--primary: #2563EB;
+--primary-light: #3B82F6;
+--primary-dark: #1D4ED8;
+
+/* Spacing (8px grid) */
+--space-4: 1rem;    /* 16px */
+--space-6: 1.5rem;  /* 24px */
+--space-8: 2rem;    /* 32px */
+
+/* Shadows */
+--shadow-primary: 0 4px 20px rgba(37, 99, 235, 0.15);
+```
+
 ---
 
 ## 📊 **Success Metrics Completados**
@@ -301,47 +361,52 @@ VITE_API_URL=http://127.0.0.1:8001
 - [x] ✅ Error handling robusto
 - [x] ✅ Testing workflow automatizado
 - [x] ✅ GitHub repository sincronizado
-- [x] ✅ Documentation completa
-- [ ] 🎯 Modelos inmobiliarios (próximo)
-- [ ] 🎯 CRUD tours/leads real (próximo)
+- [x] ✅ **Design system foundation implementado**
+- [x] ✅ **CSS variables y tokens funcionando**
+- [x] ✅ **Antd theme customizado profesional**
+- [x] ✅ **LoginPage fixed y functional**
+- [x] ✅ **Dashboard con branding aplicado**
+- [ ] 🎯 RegisterPage matching aesthetic (próximo 15 min)
+- [ ] 🎯 LoginPage premium polish (próximo 30 min)
+- [ ] 🎯 Modelos inmobiliarios (futuro)
+- [ ] 🎯 CRUD tours/leads real (futuro)
 - [ ] 🎯 Widget embebible (futuro)
 
 ---
 
 ## 📅 **Última Sesión de Trabajo**
 
-**Fecha:** 31 Mayo 2025  
-**Duración:** ~90 minutos  
-**Objetivo:** Implementar JWT Authentication real
+**Fecha:** 1 Junio 2025  
+**Duración:** ~45 minutos (de 60 minutos planificados)  
+**Objetivo:** Implementar design system foundation + auth pages polish
 
 **✅ COMPLETADO:**
-- [x] Crear `src/vocaria/auth.py` con JWT + bcrypt
-- [x] Actualizar `main.py` con endpoints `/api/auth/login` y `/api/auth/register`
-- [x] Resolver importaciones circulares creando `database.py`
-- [x] Crear `frontend/src/services/authService.ts` con axios
-- [x] Actualizar `AuthContext.tsx` para usar API real
-- [x] Testing completo end-to-end funcionando
-- [x] Script `test-api.sh` para validación automatizada
+- [x] Crear design system completo en `src/styles/design-system.css`
+- [x] Configurar Antd theme customizado con Vocaria branding
+- [x] Implementar CSS variables y design tokens (#2563EB + grays)
+- [x] Fix LoginPage layout con approach Tailwind + inline styles
+- [x] Resolver conflicts entre custom classes y Antd
+- [x] Validar design system funcionando en DevTools
+- [x] Commit y documentación del progress
 
 **🔧 ISSUES RESUELTOS:**
-- ImportError de modelos → paths relativos correctos
-- DATABASE_URL not defined → load_dotenv() + export manual
-- Hash incompatibility → usuario nuevo con bcrypt
-- Puerto 8000 ocupado → cambio a puerto 8001
-- CORS errors → configuración correcta
-- Circular imports → database.py separado
+- Layout roto en LoginPage → Fixed con Tailwind utilities + inline styles
+- Custom CSS classes conflictivas → Simplified approach funcional
+- Design inconsistency → Foundation tokens implementados
+- Antd theme genérico → Professional branding aplicado
 
-**🎯 PRÓXIMA SESIÓN:**
-- **Objetivo principal:** Evolucionar modelos hacia inmobiliario (User/Tour/Lead)
-- **Tiempo estimado:** 60-90 min
-- **Preparación necesaria:** Backend + frontend corriendo
+**🎯 SESIÓN ACTUAL (45 min restantes):**
+- **Próximo:** RegisterPage (15 min) + LoginPage premium polish (30 min)
+- **Objetivo:** Auth flow completo con aesthetic profesional
+- **Preparación:** Frontend + backend corriendo
 
 **💡 INSIGHTS/APRENDIZAJES:**
-- Workflow anti-errores funciona excelentemente
-- Prompts específicos con contexto completo evitan 90% de errores
-- Testing incremental es clave para debugging rápido
-- Scripts automatizados ahorran tiempo significativo
-- Commits frecuentes permiten rollback rápido si algo falla
+- Design system approach correcto: foundation primero, polish después
+- Custom CSS classes pueden causar conflicts → start simple, add complexity
+- Tailwind utilities + Antd + inline styles = approach más estable
+- Professional color palette (#2563EB) + Inter font = instant credibility upgrade
+- Always commit antes de major styling changes
+- Functional → good → great = mejor flow que perfect desde inicio
 
 ---
 
@@ -351,14 +416,18 @@ VITE_API_URL=http://127.0.0.1:8001
 Hola! Continuando desarrollo de Vocaria SaaS inmobiliario.
 
 ESTADO ACTUAL:
+✅ Design System Foundation completado
 ✅ JWT Authentication funcionando end-to-end
 ✅ Backend FastAPI (puerto 8001) + Frontend React (puerto 3000) 
 ✅ PostgreSQL con User/Conversation/Message
-✅ Login real: juan2@vocaria.com / test123
+✅ LoginPage functional con basic styling
+✅ Dashboard con branding profesional aplicado
+✅ CSS variables (#2563EB) y Antd theme customizado
 
 ESTRUCTURA:
 - Backend: /Users/juan/Vocaria/vocaria/backend/main.py
 - Frontend: /Users/juan/Vocaria/frontend/src/
+- Design System: /Users/juan/Vocaria/frontend/src/styles/design-system.css
 - Repo: https://github.com/Juanisegura2025/Vocaria
 
 OBJETIVO HOY:
@@ -368,14 +437,14 @@ TIEMPO DISPONIBLE: [X minutos]
 
 ARCHIVOS DE CONTEXTO:
 - Por favor revisa mi vocaria_status_update.md para contexto completo
-- También revisa los PRDs en docs/ si necesitas detalles del producto
+- También revisa design-system.md si necesitas detalles del design system
 
 ¿Continuamos con [siguiente paso específico]?
 ```
 
 ---
 
-## 🛡️ **Backup Commands (Por Si Acaso)**
+## 🛡️ **Backup Commands Actualizados**
 
 ```bash
 # Si algo falla, comandos de emergencia:
@@ -388,14 +457,18 @@ python3 -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 
 # 2. Reset frontend
 cd /Users/juan/Vocaria/frontend
-git checkout HEAD -- src/contexts/AuthContext.tsx
+git checkout HEAD -- src/pages/LoginPage.tsx
 npm run dev
 
-# 3. Test de emergencia
+# 3. Test design system
+# En DevTools console:
+getComputedStyle(document.documentElement).getPropertyValue('--primary')
+
+# 4. Test de emergencia
 cd /Users/juan/Vocaria
 ./test-api.sh
 
-# 4. Login de emergencia
+# 5. Login de emergencia
 curl -X POST http://127.0.0.1:8001/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"juan2@vocaria.com","password":"test123"}'
@@ -403,6 +476,6 @@ curl -X POST http://127.0.0.1:8001/api/auth/login \
 
 ---
 
-**🎯 Última actualización**: 31 Mayo 2025 - MVP Authentication Completado
-**✅ Estado:** FUNCIONAL END-TO-END - Listo para Fase 3 (Datos Inmobiliarios)
-**🚀 Próximo hito:** Modelos Tour/Lead/Property + API inmobiliaria
+**🎯 Última actualización**: 1 Junio 2025 - Design System Foundation Completado  
+**✅ Estado:** FUNCTIONAL + PROFESSIONAL STYLING - Listo para Auth Polish + Fase 3  
+**🚀 Próximo hito:** RegisterPage + LoginPage premium → Datos inmobiliarios
