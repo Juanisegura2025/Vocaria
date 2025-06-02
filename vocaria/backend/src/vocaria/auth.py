@@ -133,7 +133,7 @@ async def get_current_user(
         raise credentials_exception
     
     # Get user from database
-    result = await db_session.execute(select(User).filter(User.id == user_id))
+    result = await db_session.execute(select(User).filter(User.id == int(user_id)))
     user = result.scalars().first()
     
     if user is None:

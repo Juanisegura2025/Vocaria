@@ -38,7 +38,7 @@ from src.database import get_db, engine
 
 # Try to import models
 try:
-    from models import User, Conversation, Message
+    from models import User, Tour, Lead, Property
     MODELS_AVAILABLE = True
     print("✅ Models imported successfully")
 except ImportError as e:
@@ -386,3 +386,94 @@ async def get_conversation_messages(conversation_id: int, db: AsyncSession = Dep
     )
     messages = result.scalars().all()
     return messages
+
+# ========================================
+# INMOBILIARIO ENDPOINTS
+# ========================================
+
+class TourCreate(BaseModel):
+    name: str
+    matterport_model_id: str
+    agent_objective: str = "Schedule a visit"
+
+class TourResponse(BaseModel):
+    id: int
+    name: str
+    matterport_model_id: str
+    agent_objective: str
+    is_active: bool
+    created_at: datetime
+
+class LeadCreate(BaseModel):
+    tour_id: int
+    email: EmailStr
+    phone: Optional[str] = None
+    room_context: Optional[Dict[str, Any]] = None
+
+class LeadResponse(BaseModel):
+    id: int
+    tour_id: int
+    email: str
+    phone: Optional[str]
+    room_context: Optional[Dict[str, Any]]
+    created_at: datetime
+
+# CREATE TOUR
+@app.post("/api/tours", response_model=TourResponse)
+async def create_tour(tour: TourCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Create a new Matterport tour for the current user"""
+    new_tour = Tour(
+        owner_id=current_user.id,
+        name=tour.name,
+        matterport_model_id=tour.matterport_model_id,
+        agent_objective=tour.agent_objective
+    )
+    db.add(new_tour)
+    await db.commit()
+    await db.refresh(new_tour)
+    return new_tour
+
+# GET USER TOURS
+@app.get("/api/tours", response_model=List[TourResponse])
+async def get_user_tours(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Get all tours for the current user"""
+    result = await db.execute(select(Tour).where(Tour.owner_id == current_user.id))
+    tours = result.scalars().all()
+    return tours
+
+# CREATE LEAD
+@app.post("/api/leads", response_model=LeadResponse)
+async def create_lead(lead: LeadCreate, db: AsyncSession = Depends(get_db)):
+    """Create a new lead for a tour (public endpoint for widget)"""
+    # Verify tour exists
+    result = await db.execute(select(Tour).where(Tour.id == lead.tour_id))
+    tour = result.scalar_one_or_none()
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found")
+    
+    new_lead = Lead(
+        tour_id=lead.tour_id,
+        email=lead.email,
+        phone=lead.phone,
+        room_context=lead.room_context
+    )
+    db.add(new_lead)
+    await db.commit()
+    await db.refresh(new_lead)
+    return new_lead
+
+# GET TOUR LEADS
+@app.get("/api/tours/{tour_id}/leads", response_model=List[LeadResponse])
+async def get_tour_leads(tour_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Get all leads for a specific tour (owner only)"""
+    # Verify tour ownership
+    result = await db.execute(select(Tour).where(Tour.id == tour_id, Tour.owner_id == current_user.id))
+    tour = result.scalar_one_or_none()
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found or access denied")
+    
+    # Get leads
+    result = await db.execute(select(Lead).where(Lead.tour_id == tour_id))
+    leads = result.scalars().all()
+    return leads
+
