@@ -22,6 +22,9 @@ import AnalyticsPage from './features/analytics/AnalyticsPage';
 import SettingsPage from './features/settings/SettingsPage';
 import { MainLayout } from './layouts/MainLayout';
 
+// Import widget test page
+import WidgetTestPage from './widget/test-page/WidgetTestPage';
+
 // Set dayjs locale
 dayjs.locale('es');
 
@@ -92,6 +95,9 @@ function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
               </Route>
+
+              {/* Widget test route (public - no auth required) */}
+              <Route path="/widget-test" element={<WidgetTestPage />} />
 
               {/* Protected routes */}
               <Route element={<ProtectedRoute />}>

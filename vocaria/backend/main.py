@@ -441,6 +441,27 @@ async def get_user_tours(db: AsyncSession = Depends(get_db), current_user: User 
     tours = result.scalars().all()
     return tours
 
+# DELETE TOUR
+@app.delete("/api/tours/{tour_id}")
+async def delete_tour(
+    tour_id: int, 
+    db: AsyncSession = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a tour (owner only)"""
+    # Get the tour and verify ownership
+    result = await db.execute(select(Tour).where(Tour.id == tour_id, Tour.owner_id == current_user.id))
+    tour = result.scalar_one_or_none()
+    
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found or access denied")
+    
+    # Delete the tour
+    await db.delete(tour)
+    await db.commit()
+    
+    return {"message": "Tour deleted successfully"}
+
 # CREATE LEAD
 @app.post("/api/leads", response_model=LeadResponse)
 async def create_lead(lead: LeadCreate, db: AsyncSession = Depends(get_db)):
@@ -476,4 +497,3 @@ async def get_tour_leads(tour_id: int, db: AsyncSession = Depends(get_db), curre
     result = await db.execute(select(Lead).where(Lead.tour_id == tour_id))
     leads = result.scalars().all()
     return leads
-
