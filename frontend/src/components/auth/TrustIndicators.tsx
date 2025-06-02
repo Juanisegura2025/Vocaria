@@ -7,7 +7,11 @@ interface TrustIndicator {
   id: string;
 }
 
-const TrustIndicators: React.FC = () => {
+interface TrustIndicatorsProps {
+  className?: string;
+}
+
+const TrustIndicators: React.FC<TrustIndicatorsProps> = ({ className = '' }) => {
   const indicators: TrustIndicator[] = [
     { 
       icon: <CheckCircle className="w-4 h-4 text-green-500" aria-hidden="true" />, 
@@ -27,7 +31,7 @@ const TrustIndicators: React.FC = () => {
   ];
 
   return (
-    <div className="mt-8 pt-6 border-t border-gray-100">
+    <div className={`mt-8 pt-6 border-t border-gray-100 ${className}`}>
       <div className="flex flex-wrap justify-center gap-6 text-sm text-gray-500">
         {indicators.map((item) => (
           <div key={item.id} className="flex items-center gap-2">

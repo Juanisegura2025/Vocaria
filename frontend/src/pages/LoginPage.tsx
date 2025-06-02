@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Form, Alert, Checkbox } from 'antd';
-import { Mail, Lock, LogIn, UserPlus, Building2 } from 'lucide-react';
+import { Mail, Lock, LogIn, Home } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AuthCard, AuthButton, AuthInput, AuthInputPassword, TrustIndicators } from '../components/auth';
 
@@ -32,9 +32,9 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-6 pt-12">
       <AuthCard
-        icon={<Building2 className="text-white" size={32} />}
+        icon={<Home className="text-white" />}
         title="Bienvenido de vuelta"
         subtitle="Inicia sesión en tu cuenta"
         className="w-full max-w-md"
@@ -95,52 +95,35 @@ const LoginPage = () => {
             />
           </Form.Item>
 
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-8">
             <Form.Item name="remember" valuePropName="checked" noStyle>
-              <Checkbox className="text-sm text-gray-600">Recordarme</Checkbox>
+              <Checkbox>Recordarme</Checkbox>
             </Form.Item>
-            <a href="/forgot-password" className="text-sm font-medium text-blue-600 hover:text-blue-500">
+            <Link to="/forgot-password" className="text-primary hover:underline">
               ¿Olvidaste tu contraseña?
-            </a>
+            </Link>
           </div>
 
-          <Form.Item className="mb-6">
+          <Form.Item className="mb-8">
             <AuthButton
               type="primary"
               htmlType="submit"
               loading={loading}
-              icon={<LogIn size={18} className="text-white" />}
+              className="w-full h-12 text-base font-medium"
             >
-              Iniciar sesión
+              Iniciar sesión <LogIn size={18} className="ml-2" />
             </AuthButton>
           </Form.Item>
+
+          <div className="text-center text-sm text-gray-600 mb-8">
+            ¿No tienes una cuenta?{' '}
+            <Link to="/register" className="text-primary font-medium hover:underline">
+              Crear cuenta nueva
+            </Link>
+          </div>
+
         </Form>
-
-        <div className="relative my-8">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-200"></div>
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-500">¿No tienes una cuenta?</span>
-          </div>
-        </div>
-
-        <Link to="/register">
-          <AuthButton
-            type="default"
-            style={{
-              background: 'white',
-              color: '#1F2937',
-              border: '1px solid #E5E7EB',
-              boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-            }}
-            icon={<UserPlus size={18} className="text-gray-700" />}
-          >
-            Crear cuenta nueva
-          </AuthButton>
-        </Link>
-
-        <TrustIndicators />
+        <TrustIndicators className="mt-8" />
       </AuthCard>
     </div>
   );

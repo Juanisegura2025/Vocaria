@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Form, Alert, Checkbox } from 'antd';
-import { Mail, Lock, User, LogIn, UserPlus, Building2 } from 'lucide-react';
+import { Mail, Lock, User, UserPlus, Building2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AuthCard, AuthButton, AuthInput, TrustIndicators } from '../components/auth';
 
@@ -43,12 +43,13 @@ const RegisterPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-6 pt-12">
       <AuthCard
-        icon={<Building2 className="w-8 h-8 text-white" />}
+        icon={<Building2 className="text-white" />}
         title="Crea tu cuenta"
         subtitle="Comienza tu viaje con nosotros"
         description="Regístrate para crear y gestionar tus tours virtuales"
+        className="w-full max-w-md"
       >
         {error && (
           <Alert
@@ -165,43 +166,26 @@ const RegisterPage = () => {
             </Checkbox>
           </Form.Item>
 
-          <Form.Item className="mb-6">
+          <Form.Item className="mb-8">
             <AuthButton
               type="primary"
               htmlType="submit"
               loading={loading}
-              icon={<UserPlus size={18} className="text-white" />}
+              className="w-full h-12 text-base font-medium"
             >
-              Crear cuenta gratuita
+              Crear cuenta <UserPlus size={18} className="ml-2" />
             </AuthButton>
           </Form.Item>
         </Form>
 
-        <div className="relative my-8">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-200"></div>
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-500">¿Ya tienes una cuenta?</span>
-          </div>
-        </div>
-
-        <Link to="/login">
-          <AuthButton
-            type="default"
-            style={{
-              background: 'white',
-              color: '#1F2937',
-              border: '1px solid #E5E7EB',
-              boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-            }}
-            icon={<LogIn size={18} className="text-gray-700" />}
-          >
+        <div className="text-center text-sm text-gray-600 mt-8">
+          ¿Ya tienes una cuenta?{' '}
+          <Link to="/login" className="text-primary font-medium hover:underline">
             Iniciar sesión
-          </AuthButton>
-        </Link>
-
-        <TrustIndicators />
+          </Link>
+        </div>
+        
+        <TrustIndicators className="mt-8" />
       </AuthCard>
     </div>
   );
