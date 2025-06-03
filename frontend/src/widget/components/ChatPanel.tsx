@@ -1,186 +1,218 @@
 import React, { useState, useRef, useEffect } from 'react';
 import MessageList from './MessageList';
 
-interface RoomContext {
-  roomName?: string;
-  area?: number;
-  coordinates?: { x: number; y: number; z: number };
-}
-
 interface Message {
   id: string;
-  text: string;
-  sender: 'agent' | 'visitor';
+  content: string;
+  isUser: boolean;
   timestamp: Date;
-  roomContext?: RoomContext;
+  isVoice?: boolean;
 }
 
+interface LeadFormData {
+  email: string;
+  phone?: string;
+}
+
+type VoiceState = 'idle' | 'connecting' | 'connected' | 'listening' | 'speaking' | 'error' | 'disconnected';
+
 interface ChatPanelProps {
-  isOpen: boolean;
   messages: Message[];
   isTyping: boolean;
-  onSendMessage: (text: string) => void;
+  onSendMessage: (message: string) => void;
   onClose: () => void;
   agentName: string;
-  roomContext: RoomContext;
-  primaryColor: string;
+  showLeadForm: boolean;
+  onLeadSubmit: (data: LeadFormData) => void;
+  onCloseLeadForm: () => void;
+  // Voice props
+  voiceMode: boolean;
+  voiceState: VoiceState;
+  onStartVoice: () => void;
+  onStopVoice: () => void;
+  isAgentSpeaking?: boolean;
 }
 
 const ChatPanel: React.FC<ChatPanelProps> = ({
-  isOpen,
   messages,
   isTyping,
   onSendMessage,
   onClose,
   agentName,
-  roomContext,
-  primaryColor
+  showLeadForm,
+  onLeadSubmit,
+  onCloseLeadForm,
+  voiceMode,
+  voiceState,
+  onStartVoice,
+  onStopVoice,
+  isAgentSpeaking = false
 }) => {
-  const [inputValue, setInputValue] = useState('');
-  const [showLeadForm, setShowLeadForm] = useState(false);
-  const [leadData, setLeadData] = useState({ email: '', phone: '' });
+  const [inputText, setInputText] = useState('');
+  const [leadEmail, setLeadEmail] = useState('');
+  const [leadPhone, setLeadPhone] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
-
-  // Focus input when panel opens
-  useEffect(() => {
-    if (isOpen && inputRef.current) {
+    if (!voiceMode && inputRef.current) {
       inputRef.current.focus();
     }
-  }, [isOpen]);
+  }, [voiceMode]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (inputValue.trim()) {
-      onSendMessage(inputValue.trim());
-      setInputValue('');
-      
-      // Show lead form after 3 messages from visitor
-      const visitorMessages = messages.filter(m => m.sender === 'visitor');
-      if (visitorMessages.length >= 2) {
-        setTimeout(() => setShowLeadForm(true), 2000);
-      }
+  const handleSendMessage = () => {
+    if (inputText.trim() && !voiceMode) {
+      onSendMessage(inputText.trim());
+      setInputText('');
     }
   };
 
-  const handleLeadSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (leadData.email) {
-      try {
-        // Here would be the real API call to save lead
-        console.log('Lead captured:', { ...leadData, roomContext });
-        
-        // Success message
-        onSendMessage(`Perfecto! Te contactaremos pronto a ${leadData.email}`);
-        setShowLeadForm(false);
-        setLeadData({ email: '', phone: '' });
-      } catch (error) {
-        console.error('Error saving lead:', error);
-      }
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
     }
   };
 
-  const quickResponses = [
-    '¿Cuál es el precio?',
-    '¿Puedo agendar una visita?',
-    '¿Qué incluye la propiedad?',
-    'Quiero más información'
-  ];
+  const handleLeadSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (leadEmail.trim()) {
+      onLeadSubmit({
+        email: leadEmail.trim(),
+        phone: leadPhone.trim() || undefined
+      });
+      setLeadEmail('');
+      setLeadPhone('');
+    }
+  };
+
+  const getVoiceButtonText = () => {
+    switch (voiceState) {
+      case 'connecting': return 'Conectando...';
+      case 'connected': return 'Conectado';
+      case 'listening': return 'Escuchando...';
+      case 'speaking': return 'Hablando...';
+      case 'error': return 'Error - Reintentar';
+      case 'disconnected': return 'Desconectado';
+      default: return 'Iniciar Voz';
+    }
+  };
+
+  const getVoiceButtonIcon = () => {
+    switch (voiceState) {
+      case 'connecting': return '⏳';
+      case 'connected': return '🎤';
+      case 'listening': return '🔴';
+      case 'speaking': return '🔊';
+      case 'error': return '⚠️';
+      case 'disconnected': return '🎤';
+      default: return '🎤';
+    }
+  };
+
+  const isVoiceDisabled = voiceState === 'connecting' || voiceState === 'listening' || voiceState === 'speaking';
 
   return (
-    <div className={`vocaria-chat-panel ${isOpen ? 'vocaria-chat-panel--open' : ''}`}>
+    <div className="chat-panel">
       {/* Header */}
-      <div 
-        className="vocaria-chat-panel__header"
-        style={{ backgroundColor: primaryColor }}
-      >
-        <div className="vocaria-chat-panel__agent-info">
-          <div className="vocaria-chat-panel__avatar">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-              <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 4V6L13.5 7V8.5C13.5 8.8 13.3 9 13 9S12.5 8.8 12.5 8.5V7L11 6V4L5 7V9L6.5 8V18H8.5V12H10V18H12V20H14V18H15.5V8L21 9Z"/>
-            </svg>
+      <div className="chat-header">
+        <div className="agent-info">
+          <div className="agent-avatar">
+            <span>{agentName[0]}</span>
           </div>
-          <div>
-            <div className="vocaria-chat-panel__agent-name">{agentName}</div>
-            <div className="vocaria-chat-panel__agent-status">
-              <div className="vocaria-chat-panel__status-dot"></div>
-              En línea
-            </div>
+          <div className="agent-details">
+            <h3>{agentName}</h3>
+            <span className="agent-status">
+              {voiceMode ? (
+                <>
+                  {getVoiceButtonIcon()} {getVoiceButtonText()}
+                </>
+              ) : (
+                '💬 Chat'
+              )}
+            </span>
           </div>
         </div>
-        
-        <button
-          className="vocaria-chat-panel__close"
-          onClick={onClose}
-          aria-label="Cerrar chat"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-            <path d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z"/>
-          </svg>
+        <button className="close-button" onClick={onClose}>
+          ✕
         </button>
       </div>
 
-      {/* Room Context Banner */}
-      {roomContext.roomName && (
-        <div className="vocaria-chat-panel__room-banner">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="#6B7280">
-            <path d="M12 2L2 7L12 12L22 7L12 2ZM2 17L12 22L22 17M2 12L12 17L22 12"/>
-          </svg>
-          Estás en: {roomContext.roomName}
-          {roomContext.area && ` (${roomContext.area} m²)`}
+      {/* Voice Mode Indicator */}
+      {voiceMode && (
+        <div className={`voice-mode-indicator ${voiceState}`}>
+          <div className="voice-status">
+            {voiceState === 'listening' && (
+              <div className="listening-animation">
+                <div className="sound-wave"></div>
+                <div className="sound-wave"></div>
+                <div className="sound-wave"></div>
+              </div>
+            )}
+            {voiceState === 'speaking' && (
+              <div className="speaking-animation">
+                <div className="speaker-icon">🔊</div>
+                <span>El agente está hablando...</span>
+              </div>
+            )}
+            {voiceState === 'connected' && (
+              <div className="voice-ready">
+                <span>🎤 Voz activa - Puedes hablar</span>
+              </div>
+            )}
+            {voiceState === 'error' && (
+              <div className="voice-error">
+                <span>⚠️ Error de conexión de voz</span>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       {/* Messages */}
-      <div className="vocaria-chat-panel__messages">
-        <MessageList 
-          messages={messages} 
-          isTyping={isTyping}
-          agentName={agentName}
-        />
-        <div ref={messagesEndRef} />
-      </div>
+      <MessageList 
+        messages={messages} 
+        isTyping={isTyping} 
+        agentName={agentName}
+      />
 
-      {/* Lead Form Modal */}
+      {/* Lead Form */}
       {showLeadForm && (
-        <div className="vocaria-chat-panel__lead-overlay">
-          <div className="vocaria-chat-panel__lead-form">
-            <h3>¿Te contactamos con más información?</h3>
+        <div className="lead-form-overlay">
+          <div className="lead-form">
+            <div className="lead-form-header">
+              <h4>🏠 ¿Te interesa esta propiedad?</h4>
+              <button 
+                className="close-lead-form" 
+                onClick={onCloseLeadForm}
+              >
+                ✕
+              </button>
+            </div>
             <form onSubmit={handleLeadSubmit}>
-              <input
-                type="email"
-                placeholder="Tu email"
-                value={leadData.email}
-                onChange={(e) => setLeadData(prev => ({ ...prev, email: e.target.value }))}
-                required
-                className="vocaria-chat-panel__input"
-              />
-              <input
-                type="tel"
-                placeholder="Tu teléfono (opcional)"
-                value={leadData.phone}
-                onChange={(e) => setLeadData(prev => ({ ...prev, phone: e.target.value }))}
-                className="vocaria-chat-panel__input"
-              />
-              <div className="vocaria-chat-panel__form-actions">
-                <button 
-                  type="button" 
-                  onClick={() => setShowLeadForm(false)}
-                  className="vocaria-chat-panel__btn vocaria-chat-panel__btn--secondary"
-                >
-                  Después
-                </button>
-                <button 
-                  type="submit"
-                  className="vocaria-chat-panel__btn vocaria-chat-panel__btn--primary"
-                  style={{ backgroundColor: primaryColor }}
-                >
-                  Enviar
+              <div className="form-group">
+                <label htmlFor="lead-email">Email *</label>
+                <input
+                  id="lead-email"
+                  type="email"
+                  value={leadEmail}
+                  onChange={(e) => setLeadEmail(e.target.value)}
+                  placeholder="tu@email.com"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="lead-phone">Teléfono (opcional)</label>
+                <input
+                  id="lead-phone"
+                  type="tel"
+                  value={leadPhone}
+                  onChange={(e) => setLeadPhone(e.target.value)}
+                  placeholder="+54 9 11 1234-5678"
+                />
+              </div>
+              <div className="form-actions">
+                <button type="submit" className="submit-button">
+                  📧 Recibir Información
                 </button>
               </div>
             </form>
@@ -188,49 +220,69 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
       )}
 
-      {/* Quick Responses */}
-      {messages.length <= 2 && (
-        <div className="vocaria-chat-panel__quick-responses">
-          {quickResponses.map((response, index) => (
-            <button
-              key={index}
-              className="vocaria-chat-panel__quick-response"
-              onClick={() => onSendMessage(response)}
+      {/* Input Area */}
+      <div className="chat-input-area">
+        {/* Voice Toggle */}
+        <div className="voice-controls">
+          {!voiceMode ? (
+            <button 
+              className="voice-toggle-button start-voice"
+              onClick={onStartVoice}
+              title="Cambiar a conversación por voz"
             >
-              {response}
+              🎤 Usar Voz
             </button>
-          ))}
+          ) : (
+            <button 
+              className="voice-toggle-button stop-voice"
+              onClick={onStopVoice}
+              disabled={isVoiceDisabled}
+              title="Volver a chat de texto"
+            >
+              💬 Usar Texto
+            </button>
+          )}
         </div>
-      )}
 
-      {/* Input */}
-      <form onSubmit={handleSubmit} className="vocaria-chat-panel__input-form">
-        <div className="vocaria-chat-panel__input-container">
-          <input
-            ref={inputRef}
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Escribe tu pregunta..."
-            className="vocaria-chat-panel__message-input"
-            disabled={isTyping}
-          />
-          <button
-            type="submit"
-            disabled={!inputValue.trim() || isTyping}
-            className="vocaria-chat-panel__send-btn"
-            style={{ color: primaryColor }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M2.01 21L23 12L2.01 3L2 10L17 12L2 14L2.01 21Z"/>
-            </svg>
-          </button>
-        </div>
-      </form>
+        {/* Text Input (hidden in voice mode) */}
+        {!voiceMode && (
+          <div className="text-input-container">
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder={`Escribe tu mensaje para ${agentName}...`}
+              className="message-input"
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={!inputText.trim()}
+              className="send-button"
+            >
+              📤
+            </button>
+          </div>
+        )}
 
-      {/* Powered by Vocaria */}
-      <div className="vocaria-chat-panel__footer">
-        <span>Powered by <strong>Vocaria</strong></span>
+        {/* Voice Instructions */}
+        {voiceMode && (
+          <div className="voice-instructions">
+            {voiceState === 'connected' && (
+              <p>🎤 <strong>Voz activa:</strong> Habla normalmente, el agente te escucha</p>
+            )}
+            {voiceState === 'listening' && (
+              <p>🔴 <strong>Escuchando:</strong> Estás hablando...</p>
+            )}
+            {voiceState === 'speaking' && (
+              <p>🔊 <strong>Agente hablando:</strong> Escucha la respuesta</p>
+            )}
+            {voiceState === 'error' && (
+              <p>⚠️ <strong>Error:</strong> Problema con la conexión de voz</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
