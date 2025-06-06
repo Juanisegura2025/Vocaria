@@ -23,11 +23,9 @@ class BaseModel(PydanticBaseModel):
         }
 
 class IDModelMixin(BaseModel):
-    ""
-    Mixin for models that have an ID field.
+    """Mixin for models that have an ID field.
     
-    This is used to ensure consistent ID field naming and typing.
-    """
+    This is used to ensure consistent ID field naming and typing."""
     id: str = Field(..., description="Unique identifier")
 
 class DateTimeModelMixin(BaseModel):
