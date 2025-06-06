@@ -8,7 +8,7 @@ export interface WidgetConfig {
   primaryColor?: string;
   position?: 'bottom-right' | 'bottom-left';
   agentName?: string;
-  agentId?: string; // ElevenLabs Agent ID
+  agentId?: string;
   tourId?: string;
   greeting?: string;
 }
@@ -19,17 +19,21 @@ interface Message {
   isUser: boolean;
   timestamp: Date;
   isVoice?: boolean;
+  roomContext?: {
+    name: string;
+    area?: number;
+  };
 }
 
 type VoiceState = 'idle' | 'connecting' | 'connected' | 'listening' | 'speaking' | 'error' | 'disconnected';
 
 const VocariaWidget: React.FC<WidgetConfig> = ({
-  primaryColor = '#2563EB',
+  primaryColor = 'var(--primary)', // Using design system
   position = 'bottom-right',
-  agentName = 'Sofia',
-  agentId = '', // Will be set from ElevenLabs dashboard
+  agentName = 'Jorge',
+  agentId = '',
   tourId = 'demo-tour',
-  greeting = '¡Hola! Soy tu guía virtual. ¿En qué puedo ayudarte?'
+  greeting = '¡Hola! Soy tu asesor virtual inmobiliario. ¿En qué puedo ayudarte?'
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -44,11 +48,30 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
     onConnect: () => {
       console.log('🎤 Voice connected');
       setVoiceState('connected');
+      
+      // Add system message
+      const systemMessage: Message = {
+        id: Date.now().toString() + '_voice_connected',
+        content: 'Voz conectada. ¡Puedes hablar ahora!',
+        isUser: false,
+        timestamp: new Date(),
+        isVoice: true
+      };
+      setMessages(prev => [...prev, systemMessage]);
     },
     onDisconnect: () => {
       console.log('🎤 Voice disconnected'); 
       setVoiceState('disconnected');
       setVoiceMode(false);
+      
+      // Add system message
+      const systemMessage: Message = {
+        id: Date.now().toString() + '_voice_disconnected',
+        content: 'Conversación por voz finalizada. Puedes continuar escribiendo.',
+        isUser: false,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, systemMessage]);
     },
     onMessage: (message: any) => {
       console.log('🎤 Voice message:', message);
@@ -57,7 +80,20 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
     onError: (error: any) => {
       console.error('🎤 Voice error:', error);
       setVoiceState('error');
-      setTimeout(() => setVoiceState('idle'), 3000);
+      
+      // Add error message
+      const errorMessage: Message = {
+        id: Date.now().toString() + '_voice_error',
+        content: 'Error en la conexión de voz. Puedes continuar con el chat de texto.',
+        isUser: false,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      
+      setTimeout(() => {
+        setVoiceState('idle');
+        setVoiceMode(false);
+      }, 3000);
     }
   });
 
@@ -72,24 +108,38 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
     setMessages([initialMessage]);
   }, [greeting]);
 
-  // Room context simulation
+  // Room context simulation (Enhanced for real estate)
   useEffect(() => {
     const rooms = [
       { name: 'Living Room', area: 25 },
-      { name: 'Kitchen', area: 15 },
-      { name: 'Bedroom', area: 20 },
-      { name: 'Bathroom', area: 8 }
+      { name: 'Cocina', area: 15 },
+      { name: 'Dormitorio Principal', area: 20 },
+      { name: 'Baño Principal', area: 8 },
+      { name: 'Balcón', area: 6 },
+      { name: 'Vestidor', area: 4 }
     ];
     
     const interval = setInterval(() => {
-      if (Math.random() > 0.7) {
+      if (Math.random() > 0.8) { // Less frequent updates
         const randomRoom = rooms[Math.floor(Math.random() * rooms.length)];
         setCurrentRoom(randomRoom);
+        
+        // Add room context to current message if widget is open
+        if (isOpen) {
+          const roomMessage: Message = {
+            id: Date.now().toString() + '_room',
+            content: `Has ingresado al ${randomRoom.name}${randomRoom.area ? ` (${randomRoom.area} m²)` : ''}.`,
+            isUser: false,
+            timestamp: new Date(),
+            roomContext: randomRoom
+          };
+          setMessages(prev => [...prev, roomMessage]);
+        }
       }
-    }, 10000);
+    }, 15000); // Every 15 seconds
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isOpen]);
 
   const handleVoiceMessage = (voiceMessage: any) => {
     if (voiceMessage.type === 'user_transcript') {
@@ -100,7 +150,8 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
           content: voiceMessage.message,
           isUser: true,
           timestamp: new Date(),
-          isVoice: true
+          isVoice: true,
+          roomContext: currentRoom || undefined
         };
         setMessages(prev => [...prev, userMessage]);
       }
@@ -112,15 +163,25 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
           content: voiceMessage.message,
           isUser: false, 
           timestamp: new Date(),
-          isVoice: true
+          isVoice: true,
+          roomContext: currentRoom || undefined
         };
         setMessages(prev => [...prev, agentMessage]);
         
-        // Check if agent is requesting contact info
-        if (voiceMessage.message.toLowerCase().includes('contacto') || 
-            voiceMessage.message.toLowerCase().includes('email') ||
-            voiceMessage.message.toLowerCase().includes('teléfono')) {
-          setShowLeadForm(true);
+        // Enhanced lead capture triggers
+        const leadTriggers = [
+          'contacto', 'email', 'teléfono', 'información',
+          'me interesa', 'quiero saber más', 'agendar',
+          'visita', 'precio', 'comprar', 'alquilar'
+        ];
+        
+        const messageText = voiceMessage.message.toLowerCase();
+        const hasLeadTrigger = leadTriggers.some(trigger => 
+          messageText.includes(trigger)
+        );
+        
+        if (hasLeadTrigger && !showLeadForm) {
+          setTimeout(() => setShowLeadForm(true), 1500);
         }
       }
     } else if (voiceMessage.type === 'agent_thinking') {
@@ -135,13 +196,29 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
   const startVoiceConversation = async () => {
     if (!agentId) {
       console.error('🎤 No agent ID provided');
-      alert('Agent ID no configurado. Contacta al administrador.');
+      
+      const errorMessage: Message = {
+        id: Date.now().toString() + '_no_agent',
+        content: 'Error: Agent ID no configurado. Contacta al administrador del sitio.',
+        isUser: false,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
       return;
     }
 
     try {
       setVoiceState('connecting');
       setVoiceMode(true);
+      
+      // Add connecting message
+      const connectingMessage: Message = {
+        id: Date.now().toString() + '_connecting',
+        content: 'Conectando con el asistente de voz...',
+        isUser: false,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, connectingMessage]);
       
       // Start conversation with ElevenLabs agent
       await conversation.startSession({ 
@@ -153,7 +230,14 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
       console.error('🎤 Failed to start voice:', error);
       setVoiceState('error');
       setVoiceMode(false);
-      alert('No se pudo iniciar la conversación por voz. Usando chat de texto.');
+      
+      const fallbackMessage: Message = {
+        id: Date.now().toString() + '_fallback',
+        content: 'No se pudo iniciar la conversación por voz. Continúa con el chat de texto.',
+        isUser: false,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, fallbackMessage]);
     }
   };
 
@@ -168,46 +252,86 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
       id: Date.now().toString(),
       content: text,
       isUser: true,
-      timestamp: new Date()
+      timestamp: new Date(),
+      roomContext: currentRoom || undefined
     };
 
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
 
+    // Enhanced agent responses with real estate context
+    const getContextualResponse = () => {
+      const lowerText = text.toLowerCase();
+      
+      if (lowerText.includes('precio') || lowerText.includes('costo')) {
+        return `Para información sobre precios de ${currentRoom?.name || 'esta propiedad'}, un agente especializado te puede brindar detalles actualizados. ¿Te gustaría que te contacte?`;
+      }
+      
+      if (lowerText.includes('tamaño') || lowerText.includes('metros') || lowerText.includes('m2')) {
+        return `${currentRoom?.name || 'Esta área'} tiene ${currentRoom?.area || 'amplios'} metros cuadrados. ¿Te interesa conocer las dimensiones de otros ambientes?`;
+      }
+      
+      if (lowerText.includes('ubicación') || lowerText.includes('barrio') || lowerText.includes('zona')) {
+        return `Esta propiedad está en una excelente ubicación. ¿Te gustaría agendar una visita para conocer mejor la zona y sus servicios?`;
+      }
+      
+      if (lowerText.includes('visita') || lowerText.includes('ver') || lowerText.includes('conocer')) {
+        return `¡Perfecto! Me encantaría coordinar una visita para que puedas conocer toda la propiedad. ¿Podrías dejarme tu email para que un agente se contacte contigo?`;
+      }
+      
+      // Default responses
+      const responses = [
+        `Excelente pregunta sobre ${currentRoom?.name || 'esta propiedad'}. Te puedo ayudar con toda la información que necesites.`,
+        `Esta propiedad tiene características muy interesantes. ¿Te gustaría que un agente especializado te brinde más detalles?`,
+        `¡Me alegra tu interés! Para darte la información más precisa, ¿podrías contarme qué es lo que más te importa en una propiedad?`,
+        `Perfecto, puedo ayudarte con eso. ¿Te interesaría agendar una visita para conocer todos los detalles en persona?`
+      ];
+      
+      return responses[Math.floor(Math.random() * responses.length)];
+    };
+
     // Simulate agent response
     setTimeout(() => {
-      const responses = [
-        `Claro, te puedo ayudar con información sobre ${currentRoom?.name || 'esta propiedad'}.`,
-        `Esta es una excelente propiedad con ${currentRoom?.area || 'amplios'} metros cuadrados.`,
-        `¿Te gustaría agendar una visita presencial? Puedo conectarte con un agente.`,
-        `¡Perfecto! Para más información, ¿podrías dejarme tu email?`
-      ];
-
       const agentMessage: Message = {
         id: Date.now().toString() + '_agent',
-        content: responses[Math.floor(Math.random() * responses.length)],
+        content: getContextualResponse(),
         isUser: false,
-        timestamp: new Date()
+        timestamp: new Date(),
+        roomContext: currentRoom || undefined
       };
 
       setMessages(prev => [...prev, agentMessage]);
       setIsTyping(false);
 
-      // Randomly show lead form
-      if (Math.random() > 0.6) {
-        setTimeout(() => setShowLeadForm(true), 1000);
+      // Smart lead form trigger
+      const leadTriggers = [
+        'precio', 'visita', 'agendar', 'contacto', 'información',
+        'interesa', 'comprar', 'alquilar', 'más detalles'
+      ];
+      
+      const hasLeadTrigger = leadTriggers.some(trigger => 
+        text.toLowerCase().includes(trigger)
+      );
+      
+      if (hasLeadTrigger || Math.random() > 0.7) {
+        setTimeout(() => setShowLeadForm(true), 2000);
       }
-    }, 1500);
+    }, 1000 + Math.random() * 1000); // Random delay for natural feel
   };
 
   const handleLeadSubmit = async (leadData: { email: string; phone?: string }) => {
     try {
-      // Here you would integrate with your existing leadsService
-      console.log('📧 Lead captured:', leadData);
+      console.log('📧 Lead captured:', {
+        ...leadData,
+        tourId,
+        roomContext: currentRoom,
+        agentId,
+        timestamp: new Date().toISOString()
+      });
       
       const thankYouMessage: Message = {
         id: Date.now().toString() + '_thanks',
-        content: `¡Gracias ${leadData.email.split('@')[0]}! Un agente se pondrá en contacto contigo pronto.`,
+        content: `¡Gracias ${leadData.email.split('@')[0]}! Un agente especializado se pondrá en contacto contigo pronto para coordinar una visita y brindarte toda la información que necesites.`,
         isUser: false,
         timestamp: new Date()
       };
@@ -220,34 +344,45 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
       //   email: leadData.email, 
       //   phone: leadData.phone,
       //   tourId: tourId,
-      //   roomContext: currentRoom 
+      //   roomContext: currentRoom,
+      //   source: voiceMode ? 'voice' : 'text'
       // });
       
     } catch (error) {
       console.error('Failed to save lead:', error);
+      
+      const errorMessage: Message = {
+        id: Date.now().toString() + '_lead_error',
+        content: 'Hubo un problema al guardar tu información. Por favor, intenta nuevamente o contacta directamente al agente.',
+        isUser: false,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
     }
   };
 
-  const widgetStyle = {
-    '--primary-color': primaryColor,
-    '--primary-color-light': primaryColor + '20',
-    '--primary-color-dark': primaryColor + 'DD'
-  } as React.CSSProperties;
+  // Enhanced widget styling with design system
+  const widgetStyle = React.useMemo(() => ({
+    '--widget-primary': primaryColor,
+    '--widget-primary-light': primaryColor.replace(')', ', 0.8)').replace('var(--primary)', 'var(--primary-light)'),
+    '--widget-primary-dark': primaryColor.replace(')', ', 1.2)').replace('var(--primary)', 'var(--primary-dark)'),
+    '--widget-primary-50': primaryColor.replace(')', ', 0.1)').replace('var(--primary)', 'var(--primary-50)')
+  } as React.CSSProperties), [primaryColor]);
 
   return (
     <div 
       className={`vocaria-widget ${position}`}
       style={widgetStyle}
     >
-      {/* Room Context Banner */}
+      {/* Enhanced Room Context Banner */}
       {currentRoom && isOpen && (
         <div className="room-context-banner">
-          📍 Estás en: {currentRoom.name} 
+          📍 Estás en: <strong>{currentRoom.name}</strong>
           {currentRoom.area && ` (${currentRoom.area} m²)`}
         </div>
       )}
 
-      {/* Chat Panel */}
+      {/* Premium Chat Panel */}
       {isOpen && (
         <ChatPanel
           messages={messages}
@@ -264,16 +399,20 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
           onStartVoice={startVoiceConversation}
           onStopVoice={stopVoiceConversation}
           isAgentSpeaking={conversation.isSpeaking}
+          // Enhanced props
+          currentRoom={currentRoom}
+          tourId={tourId}
         />
       )}
 
-      {/* Chat Bubble */}
+      {/* Premium Chat Bubble */}
       <ChatBubble
         isOpen={isOpen}
         onClick={() => setIsOpen(!isOpen)}
-        hasNewMessage={messages.length > 1}
+        hasNewMessage={messages.length > 1 && !isOpen}
         voiceMode={voiceMode}
         voiceState={voiceState}
+        unreadCount={isOpen ? 0 : Math.max(0, messages.length - 1)}
       />
     </div>
   );
