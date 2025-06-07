@@ -1,0 +1,351 @@
+"""
+Matterport API Integration Service
+Extrae automáticamente información de tours de Matterport usando GraphQL API
+"""
+import os
+import asyncio
+import httpx
+from typing import Dict, List, Optional, Any
+from pydantic import BaseModel
+import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+class MatterportRoom(BaseModel):
+    """Información de una habitación detectada por Matterport"""
+    id: str
+    label: str
+    tags: List[str] = []
+    area_floor: Optional[float] = None
+    area_floor_indoor: Optional[float] = None
+    area_wall: Optional[float] = None
+    volume: Optional[float] = None
+    height: Optional[float] = None
+    units: str = "metric"
+
+class MatterportFloor(BaseModel):
+    """Información de un piso detectado por Matterport"""
+    label: str
+    area_floor: Optional[float] = None
+    area_floor_indoor: Optional[float] = None
+    area_wall: Optional[float] = None
+    volume: Optional[float] = None
+    units: str = "metric"
+
+class MatterportModelData(BaseModel):
+    """Datos completos extraídos de un modelo de Matterport"""
+    # Información básica
+    id: str
+    name: Optional[str] = None
+    description: Optional[str] = None
+    
+    # Dirección (si disponible)
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = None
+    
+    # Dimensiones totales
+    total_area_floor: Optional[float] = None
+    total_area_floor_indoor: Optional[float] = None
+    total_volume: Optional[float] = None
+    units: str = "metric"
+    
+    # Habitaciones y pisos
+    rooms: List[MatterportRoom] = []
+    floors: List[MatterportFloor] = []
+    
+    # URLs importantes
+    share_url: Optional[str] = None
+    embed_url: Optional[str] = None
+    
+    # Metadatos
+    created_at: Optional[str] = None
+    modified_at: Optional[str] = None
+    visibility: Optional[str] = None
+
+class MatterportService:
+    def __init__(self):
+        self.api_key = os.getenv('MATTERPORT_API_KEY')
+        self.api_secret = os.getenv('MATTERPORT_SECRET_KEY') 
+        self.base_url = os.getenv('MATTERPORT_BASE_URL', 'https://api.matterport.com')
+        self.graphql_endpoint = f"{self.base_url}/api/models/graph"
+        
+        # Verificar configuración
+        if not self.api_key or not self.api_secret:
+            logger.warning("Matterport API credentials not configured")
+            self.configured = False
+        else:
+            self.configured = True
+    
+    def _build_auth(self) -> Optional[httpx.BasicAuth]:
+        """Construir autenticación básica para Matterport API"""
+        if not self.configured:
+            return None
+        return httpx.BasicAuth(self.api_key, self.api_secret)
+    
+    async def get_model_basic_info(self, model_id: str) -> Dict[str, Any]:
+        """
+        Obtener información básica de un modelo (siempre funciona)
+        """
+        query = """
+        query GetModel($modelId: ID!) {
+            model(id: $modelId) {
+                id
+                name
+                description
+                created
+                modified
+                visibility
+                shareUrl
+                embedUrl
+            }
+        }
+        """
+        
+        return await self._execute_query(query, {"modelId": model_id})
+    
+    async def get_model_address(self, model_id: str) -> Dict[str, Any]:
+        """
+        Obtener dirección del modelo (si está disponible)
+        """
+        query = """
+        query GetModelAddress($modelId: ID!) {
+            model(id: $modelId) {
+                id
+                address {
+                    line1
+                    line2
+                    city
+                    state
+                    postalCode
+                    country
+                }
+            }
+        }
+        """
+        
+        return await self._execute_query(query, {"modelId": model_id})
+    
+    async def get_model_dimensions(self, model_id: str) -> Dict[str, Any]:
+        """
+        Obtener dimensiones del modelo (requiere Property Intelligence)
+        """
+        query = """
+        query GetModelDimensions($modelId: ID!) {
+            model(id: $modelId) {
+                id
+                dimensions {
+                    areaFloor
+                    areaFloorIndoor  
+                    volume
+                    units
+                }
+                floors {
+                    label
+                    dimensions {
+                        areaFloor
+                        areaFloorIndoor
+                        areaWall
+                        volume
+                        units
+                    }
+                }
+                rooms {
+                    id
+                    label
+                    tags
+                    dimensions {
+                        areaFloor
+                        areaFloorIndoor
+                        areaWall
+                        volume
+                        height
+                        units
+                    }
+                }
+            }
+        }
+        """
+        
+        return await self._execute_query(query, {"modelId": model_id})
+    
+    async def _execute_query(self, query: str, variables: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Ejecutar query GraphQL contra la API de Matterport
+        """
+        if not self.configured:
+            logger.warning("Matterport API not configured, returning empty data")
+            return {"data": None, "errors": ["API not configured"]}
+        
+        payload = {
+            "query": query,
+            "variables": variables
+        }
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    self.graphql_endpoint,
+                    json=payload,
+                    headers=headers,
+                    auth=self._build_auth()
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    return result
+                else:
+                    logger.error(f"Matterport API error: {response.status_code} - {response.text}")
+                    return {"data": None, "errors": [f"HTTP {response.status_code}"]}
+                    
+        except Exception as e:
+            logger.error(f"Error calling Matterport API: {str(e)}")
+            return {"data": None, "errors": [str(e)]}
+    
+    async def extract_model_data(self, model_id: str) -> MatterportModelData:
+        """
+        Extraer todos los datos disponibles de un modelo de Matterport
+        Maneja gracefully si algunas features no están disponibles
+        """
+        logger.info(f"Extracting data for Matterport model: {model_id}")
+        
+        # Inicializar datos base
+        model_data = MatterportModelData(id=model_id)
+        
+        try:
+            # 1. Información básica (siempre disponible)
+            basic_info = await self.get_model_basic_info(model_id)
+            if basic_info.get("data") and basic_info["data"].get("model"):
+                model = basic_info["data"]["model"]
+                model_data.name = model.get("name")
+                model_data.description = model.get("description")
+                model_data.share_url = model.get("shareUrl")
+                model_data.embed_url = model.get("embedUrl")
+                model_data.created_at = model.get("created")
+                model_data.modified_at = model.get("modified")
+                model_data.visibility = model.get("visibility")
+                logger.info(f"✅ Basic info extracted: {model_data.name}")
+            
+            # 2. Dirección (opcional)
+            try:
+                address_info = await self.get_model_address(model_id)
+                if address_info.get("data") and address_info["data"].get("model", {}).get("address"):
+                    address = address_info["data"]["model"]["address"]
+                    model_data.address_line1 = address.get("line1")
+                    model_data.address_line2 = address.get("line2")
+                    model_data.city = address.get("city")
+                    model_data.state = address.get("state")
+                    model_data.postal_code = address.get("postalCode")
+                    model_data.country = address.get("country")
+                    logger.info(f"✅ Address extracted: {model_data.city}")
+            except Exception as e:
+                logger.warning(f"Could not extract address: {e}")
+            
+            # 3. Dimensiones y habitaciones (requiere Property Intelligence)
+            try:
+                dimensions_info = await self.get_model_dimensions(model_id)
+                if dimensions_info.get("data") and dimensions_info["data"].get("model"):
+                    model = dimensions_info["data"]["model"]
+                    
+                    # Dimensiones totales
+                    if model.get("dimensions"):
+                        dims = model["dimensions"]
+                        model_data.total_area_floor = dims.get("areaFloor")
+                        model_data.total_area_floor_indoor = dims.get("areaFloorIndoor")
+                        model_data.total_volume = dims.get("volume")
+                        model_data.units = dims.get("units", "metric")
+                    
+                    # Habitaciones
+                    if model.get("rooms"):
+                        for room in model["rooms"]:
+                            room_dims = room.get("dimensions", {})
+                            matterport_room = MatterportRoom(
+                                id=room.get("id", ""),
+                                label=room.get("label", "Unknown Room"),
+                                tags=room.get("tags", []),
+                                area_floor=room_dims.get("areaFloor"),
+                                area_floor_indoor=room_dims.get("areaFloorIndoor"),
+                                area_wall=room_dims.get("areaWall"),
+                                volume=room_dims.get("volume"),
+                                height=room_dims.get("height"),
+                                units=room_dims.get("units", "metric")
+                            )
+                            model_data.rooms.append(matterport_room)
+                    
+                    # Pisos
+                    if model.get("floors"):
+                        for floor in model["floors"]:
+                            floor_dims = floor.get("dimensions", {})
+                            matterport_floor = MatterportFloor(
+                                label=floor.get("label", "Unknown Floor"),
+                                area_floor=floor_dims.get("areaFloor"),
+                                area_floor_indoor=floor_dims.get("areaFloorIndoor"),
+                                area_wall=floor_dims.get("areaWall"),
+                                volume=floor_dims.get("volume"),
+                                units=floor_dims.get("units", "metric")
+                            )
+                            model_data.floors.append(matterport_floor)
+                    
+                    logger.info(f"✅ Dimensions extracted: {len(model_data.rooms)} rooms, {len(model_data.floors)} floors")
+            except Exception as e:
+                logger.warning(f"Could not extract dimensions (Property Intelligence may not be enabled): {e}")
+            
+        except Exception as e:
+            logger.error(f"Error extracting model data: {e}")
+        
+        logger.info(f"🎯 Extraction complete for model {model_id}")
+        return model_data
+    
+    def format_for_agent_context(self, model_data: MatterportModelData) -> str:
+        """
+        Formatear datos del modelo para contexto del agente ElevenLabs
+        """
+        context_parts = []
+        
+        # Información básica
+        if model_data.name:
+            context_parts.append(f"Propiedad: {model_data.name}")
+        
+        if model_data.description:
+            context_parts.append(f"Descripción: {model_data.description}")
+        
+        # Dirección
+        address_parts = []
+        if model_data.address_line1:
+            address_parts.append(model_data.address_line1)
+        if model_data.city:
+            address_parts.append(model_data.city)
+        if address_parts:
+            context_parts.append(f"Ubicación: {', '.join(address_parts)}")
+        
+        # Dimensiones totales
+        if model_data.total_area_floor:
+            area = model_data.total_area_floor
+            units = "m²" if model_data.units == "metric" else "ft²"
+            context_parts.append(f"Área total: {area:.1f} {units}")
+        
+        # Habitaciones
+        if model_data.rooms:
+            rooms_info = []
+            for room in model_data.rooms:
+                room_desc = room.label
+                if room.area_floor:
+                    units = "m²" if room.units == "metric" else "ft²"
+                    room_desc += f" ({room.area_floor:.1f} {units})"
+                rooms_info.append(room_desc)
+            
+            context_parts.append(f"Habitaciones: {', '.join(rooms_info)}")
+        
+        return ". ".join(context_parts) + "."
+
+# Instancia global del servicio
+matterport_service = MatterportService()

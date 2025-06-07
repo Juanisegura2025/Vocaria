@@ -128,9 +128,27 @@ const ToursPage = () => {
           <div className="bg-blue-100 p-2 rounded-lg mr-3">
             <Home className="text-blue-600" size={16} />
           </div>
-          <div>
+          <div className="flex-1">
             <div className="font-medium">{name || 'Sin nombre'}</div>
             <div className="text-xs text-gray-500">ID: {record.id}</div>
+            {/* Mostrar información importada de Matterport */}
+            {record.matterport_data_imported && record.property_data && (
+              <div className="flex items-center mt-1 text-xs">
+                <Tag color="green" className="mr-1 text-xs">
+                  Matterport
+                </Tag>
+                {record.property_data.city && (
+                  <span className="text-gray-500">
+                    📍 {record.property_data.city}
+                  </span>
+                )}
+                {record.property_data.total_area_floor && (
+                  <span className="text-gray-500 ml-2">
+                    📐 {record.property_data.total_area_floor.toFixed(1)} {record.property_data.dimension_units === 'metric' ? 'm²' : 'ft²'}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       ),
@@ -156,6 +174,39 @@ const ToursPage = () => {
       ),
     },
     {
+      title: 'Datos Matterport',
+      key: 'matterport_status',
+      render: (_: any, record: Tour) => {
+        if (record.matterport_data_imported) {
+          return (
+            <div className="space-y-1">
+              <Tag color="green" className="text-xs">
+                ✅ Importado
+              </Tag>
+              {record.property_data?.rooms_count && (
+                <div className="text-xs text-gray-500">
+                  {record.property_data.rooms_count} habitaciones
+                </div>
+              )}
+            </div>
+          );
+        } else {
+          const getStatusTag = (status?: string) => {
+            switch (status) {
+              case 'failed':
+                return <Tag color="red" className="text-xs">❌ Error</Tag>;
+              case 'not_configured':
+                return <Tag color="orange" className="text-xs">⚙️ No config.</Tag>;
+              default:
+                return <Tag color="gray" className="text-xs">➖ Manual</Tag>;
+            }
+          };
+          
+          return getStatusTag(record.import_status);
+        }
+      },
+    },
+    {
       title: 'Fecha Creación',
       dataIndex: 'created_at',
       key: 'created_at',
@@ -176,7 +227,7 @@ const ToursPage = () => {
     {
       title: 'Acciones',
       key: 'actions',
-      render: (_, record: Tour) => (
+      render: (_: any, record: Tour) => (
         <Space size="middle">
           <Button 
             type="text" 
@@ -259,6 +310,7 @@ const ToursPage = () => {
               showSizeChanger: true,
               showTotal: (total) => `Total ${total} tours`,
             }}
+            scroll={{ x: 1200 }} // Permite scroll horizontal en pantallas pequeñas
           />
         )}
       </Card>

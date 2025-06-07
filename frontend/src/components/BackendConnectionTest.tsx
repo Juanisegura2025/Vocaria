@@ -14,7 +14,7 @@ export const BackendConnectionTest = () => {
     
     try {
       // Test 1: Basic health check
-      const healthResponse = await fetch('http://localhost:8001/health');
+      const healthResponse = await fetch('http://localhost:8002/health');
       
       if (!healthResponse.ok) {
         throw new Error(`Health check failed: ${healthResponse.status}`);
@@ -23,7 +23,7 @@ export const BackendConnectionTest = () => {
       const healthData = await healthResponse.json();
       
       // Test 2: Root endpoint
-      const rootResponse = await fetch('http://localhost:8001/');
+      const rootResponse = await fetch('http://localhost:8002/');
       const rootData = await rootResponse.json();
       
       setTestResult({
@@ -99,7 +99,7 @@ export const BackendConnectionTest = () => {
               <div className="mt-2 text-sm text-red-600">
                 <p><strong>Common solutions:</strong></p>
                 <ul className="list-disc list-inside">
-                  <li>Make sure backend is running on port 8001</li>
+                  <li>Make sure backend is running on port 8002</li>
                   <li>Check if CORS is properly configured</li>
                   <li>Verify the backend URL is correct</li>
                 </ul>

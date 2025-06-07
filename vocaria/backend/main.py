@@ -36,16 +36,23 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 # Import database configuration
 from src.database import get_db, engine
 
-# Try to import models
+# ✅ FIXED: Import models correctly
 try:
-    from models import User, Tour, Lead, Property
+    from src.models import User, Tour, Lead, Property
     MODELS_AVAILABLE = True
     print("✅ Models imported successfully")
 except ImportError as e:
     print(f"⚠️ Models import failed: {e}")
     MODELS_AVAILABLE = False
 
-load_dotenv()
+# Import Matterport service
+try:
+    from src.matterport_service import matterport_service
+    MATTERPORT_AVAILABLE = True
+    print("✅ Matterport service imported successfully")
+except ImportError as e:
+    print(f"⚠️ Matterport service import failed: {e}")
+    MATTERPORT_AVAILABLE = False
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -53,6 +60,10 @@ async def lifespan(app: FastAPI):
     yield
     print("🛑 Vocaria API shutting down...")
     await engine.dispose()
+
+# ========================================
+# PYDANTIC MODELS (CLEAN - NO DUPLICATES)
+# ========================================
 
 # Authentication Models
 class Token(BaseModel):
@@ -91,6 +102,66 @@ class UserResponse(UserBase):
             datetime: lambda v: v.isoformat() if v else None
         }
 
+# Tour Models
+class TourCreate(BaseModel):
+    name: str
+    matterport_model_id: str
+    agent_objective: str = "Schedule a visit"
+
+class PropertyData(BaseModel):
+    """Datos de propiedad importados de Matterport"""
+    # Básicos
+    matterport_name: Optional[str] = None
+    matterport_description: Optional[str] = None
+    
+    # Dirección
+    address_line1: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+    
+    # Dimensiones
+    total_area_floor: Optional[float] = None
+    total_area_floor_indoor: Optional[float] = None
+    dimension_units: str = "metric"
+    
+    # Habitaciones (simplified for response)
+    rooms_count: int = 0
+    rooms_summary: Optional[str] = None
+
+class TourResponse(BaseModel):
+    id: int
+    name: str
+    matterport_model_id: str
+    agent_objective: str
+    is_active: bool
+    created_at: datetime
+    
+    # NUEVOS CAMPOS MATTERPORT
+    matterport_data_imported: bool = False
+    matterport_share_url: Optional[str] = None
+    property_data: Optional[PropertyData] = None
+    import_status: Optional[str] = None  # "success", "partial", "failed"
+
+# Lead Models
+class LeadCreate(BaseModel):
+    tour_id: int
+    email: EmailStr
+    phone: Optional[str] = None
+    room_context: Optional[Dict[str, Any]] = None
+
+class LeadResponse(BaseModel):
+    id: int
+    tour_id: int
+    email: str
+    phone: Optional[str]
+    room_context: Optional[Dict[str, Any]]
+    created_at: datetime
+
+# ========================================
+# FASTAPI APP SETUP
+# ========================================
+
 app = FastAPI(
     title="Vocaria API",
     version="1.0.0",
@@ -106,6 +177,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ========================================
+# BASIC ENDPOINTS
+# ========================================
+
 @app.get("/")
 async def root():
     return {
@@ -113,6 +188,7 @@ async def root():
         "version": "1.0.0",
         "status": "✅ Ready",
         "models_loaded": MODELS_AVAILABLE,
+        "matterport_available": MATTERPORT_AVAILABLE,
         "endpoints": [
             "GET /health - Estado del sistema",
             "GET / - Este endpoint"
@@ -123,6 +199,8 @@ async def root():
 async def health_check():
     try:
         db_url = os.getenv('DATABASE_URL')
+        matterport_configured = bool(os.getenv('MATTERPORT_API_KEY') and os.getenv('MATTERPORT_SECRET_KEY'))
+        
         return {
             "status": "✅ healthy",
             "database": {
@@ -131,6 +209,10 @@ async def health_check():
                 "type": db_url.split('://')[0] if db_url and '://' in db_url else None
             },
             "models": "✅ loaded" if MODELS_AVAILABLE else "⚠️ not loaded",
+            "matterport": {
+                "service": "✅ available" if MATTERPORT_AVAILABLE else "❌ not loaded",
+                "configured": "✅ configured" if matterport_configured else "⚠️ not configured"
+            },
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
@@ -140,46 +222,10 @@ async def health_check():
             "timestamp": datetime.now().isoformat()
         }
 
-if __name__ == "__main__":
-    import uvicorn
-    print("🚀 Starting Vocaria API server...")
-    uvicorn.run(app, host="0.0.0.0", port=8001)
-# Modelos Pydantic para requests/responses
-class UserCreate(BaseModel):
-    username: str
-    email: str
-    password: str
+# ========================================
+# AUTH ENDPOINTS
+# ========================================
 
-class UserResponse(BaseModel):
-    id: int
-    username: str
-    email: str
-    is_active: bool
-    created_at: Optional[datetime] = None
-
-class ConversationCreate(BaseModel):
-    user_id: int
-    title: str
-
-class ConversationResponse(BaseModel):
-    id: int
-    user_id: int
-    title: str
-    created_at: Optional[datetime] = None
-
-class MessageCreate(BaseModel):
-    conversation_id: int
-    content: str
-    is_user: bool = True
-
-class MessageResponse(BaseModel):
-    id: int
-    conversation_id: int
-    content: str
-    is_user: bool
-    created_at: Optional[datetime] = None
-
-# Auth endpoints
 @app.post("/api/auth/register", response_model=UserResponse)
 async def register(user: RegisterRequest, db: AsyncSession = Depends(get_db)):
     # Check if user already exists
@@ -244,7 +290,10 @@ async def login(form_data: LoginRequest, db: AsyncSession = Depends(get_db)):
 async def read_users_me(current_user: User = Depends(get_current_active_user)):
     return current_user
 
-# ENDPOINTS DE USUARIOS
+# ========================================
+# USER ENDPOINTS
+# ========================================
+
 @app.get("/api/users", response_model=List[UserResponse])
 async def get_users(db: AsyncSession = Depends(get_db)):
     if not MODELS_AVAILABLE:
@@ -292,156 +341,204 @@ async def get_user(user_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
-# ENDPOINTS DE CONVERSACIONES
-@app.get("/api/conversations", response_model=List[ConversationResponse])
-async def get_conversations(db: AsyncSession = Depends(get_db)):
-    if not MODELS_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Models not available")
-    
-    result = await db.execute(select(Conversation))
-    conversations = result.scalars().all()
-    return conversations
-
-@app.post("/api/conversations", response_model=ConversationResponse)
-async def create_conversation(conversation: ConversationCreate, db: AsyncSession = Depends(get_db)):
-    if not MODELS_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Models not available")
-    
-    # Verificar que el usuario existe
-    result = await db.execute(select(User).where(User.id == conversation.user_id))
-    if not result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Crear conversación
-    db_conversation = Conversation(
-        user_id=conversation.user_id,
-        title=conversation.title
-    )
-    db.add(db_conversation)
-    await db.commit()
-    await db.refresh(db_conversation)
-    return db_conversation
-
-@app.get("/api/conversations/{conversation_id}", response_model=ConversationResponse)
-async def get_conversation(conversation_id: int, db: AsyncSession = Depends(get_db)):
-    if not MODELS_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Models not available")
-    
-    result = await db.execute(select(Conversation).where(Conversation.id == conversation_id))
-    conversation = result.scalar_one_or_none()
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    return conversation
-
-# ENDPOINTS DE MENSAJES
-@app.get("/api/messages", response_model=List[MessageResponse])
-async def get_messages(conversation_id: Optional[int] = None, db: AsyncSession = Depends(get_db)):
-    if not MODELS_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Models not available")
-    
-    query = select(Message)
-    if conversation_id:
-        query = query.where(Message.conversation_id == conversation_id)
-    
-    result = await db.execute(query)
-    messages = result.scalars().all()
-    return messages
-
-@app.post("/api/messages", response_model=MessageResponse)
-async def create_message(message: MessageCreate, db: AsyncSession = Depends(get_db)):
-    if not MODELS_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Models not available")
-    
-    # Verificar que la conversación existe
-    result = await db.execute(select(Conversation).where(Conversation.id == message.conversation_id))
-    if not result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    
-    # Crear mensaje
-    db_message = Message(
-        conversation_id=message.conversation_id,
-        content=message.content,
-        is_user=message.is_user
-    )
-    db.add(db_message)
-    await db.commit()
-    await db.refresh(db_message)
-    return db_message
-
-@app.get("/api/conversations/{conversation_id}/messages", response_model=List[MessageResponse])
-async def get_conversation_messages(conversation_id: int, db: AsyncSession = Depends(get_db)):
-    if not MODELS_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Models not available")
-    
-    # Verificar que la conversación existe
-    result = await db.execute(select(Conversation).where(Conversation.id == conversation_id))
-    if not result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    
-    # Obtener mensajes
-    result = await db.execute(
-        select(Message)
-        .where(Message.conversation_id == conversation_id)
-        .order_by(Message.created_at)
-    )
-    messages = result.scalars().all()
-    return messages
-
 # ========================================
-# INMOBILIARIO ENDPOINTS
+# TOURS ENDPOINTS CON MATTERPORT
 # ========================================
 
-class TourCreate(BaseModel):
-    name: str
-    matterport_model_id: str
-    agent_objective: str = "Schedule a visit"
-
-class TourResponse(BaseModel):
-    id: int
-    name: str
-    matterport_model_id: str
-    agent_objective: str
-    is_active: bool
-    created_at: datetime
-
-class LeadCreate(BaseModel):
-    tour_id: int
-    email: EmailStr
-    phone: Optional[str] = None
-    room_context: Optional[Dict[str, Any]] = None
-
-class LeadResponse(BaseModel):
-    id: int
-    tour_id: int
-    email: str
-    phone: Optional[str]
-    room_context: Optional[Dict[str, Any]]
-    created_at: datetime
-
-# CREATE TOUR
 @app.post("/api/tours", response_model=TourResponse)
 async def create_tour(tour: TourCreate, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Create a new Matterport tour for the current user"""
+    """Create a new Matterport tour with automatic data import"""
+    
+    # Crear el tour base
     new_tour = Tour(
         owner_id=current_user.id,
         name=tour.name,
         matterport_model_id=tour.matterport_model_id,
-        agent_objective=tour.agent_objective
+        agent_objective=tour.agent_objective,
+        matterport_data_imported=False
     )
-    db.add(new_tour)
-    await db.commit()
-    await db.refresh(new_tour)
-    return new_tour
+    
+    # Variables para tracking del import
+    import_status = "pending"
+    property_data = None
+    import_errors = []
+    
+    try:
+        # Intentar importar datos de Matterport
+        if MATTERPORT_AVAILABLE and matterport_service.configured:
+            print(f"🔍 Importing Matterport data for model: {tour.matterport_model_id}")
+            
+            # Extraer datos del modelo
+            model_data = await matterport_service.extract_model_data(tour.matterport_model_id)
+            
+            # Crear registro de Property con datos importados
+            new_property = Property(
+                tour=new_tour,  # Será asociado cuando se guarde el tour
+                
+                # Datos básicos
+                matterport_name=model_data.name,
+                matterport_description=model_data.description,
+                matterport_visibility=model_data.visibility,
+                
+                # Dirección
+                address_line1=model_data.address_line1,
+                address_line2=model_data.address_line2,
+                city=model_data.city,
+                state=model_data.state,
+                postal_code=model_data.postal_code,
+                country=model_data.country,
+                
+                # Dimensiones
+                total_area_floor=model_data.total_area_floor,
+                total_area_floor_indoor=model_data.total_area_floor_indoor,
+                total_volume=model_data.total_volume,
+                dimension_units=model_data.units,
+                
+                # Data estructurada
+                rooms_data=[room.dict() for room in model_data.rooms],
+                floors_data=[floor.dict() for floor in model_data.floors],
+                
+                # URLs
+                share_url=model_data.share_url,
+                embed_url=model_data.embed_url,
+                
+                # Metadatos
+                data_source="matterport",
+                matterport_import_success=True,
+                last_matterport_sync=datetime.now()
+            )
+            
+            # Actualizar tour con datos importados
+            new_tour.matterport_data_imported = True
+            new_tour.matterport_last_sync = datetime.now()
+            new_tour.matterport_share_url = model_data.share_url
+            new_tour.matterport_embed_url = model_data.embed_url
+            new_tour.room_data = [room.dict() for room in model_data.rooms]
+            
+            # Generar contexto para el agente
+            agent_context = matterport_service.format_for_agent_context(model_data)
+            new_tour.agent_context = agent_context
+            
+            import_status = "success"
+            
+            # Preparar property_data para respuesta
+            property_data = PropertyData(
+                matterport_name=model_data.name,
+                matterport_description=model_data.description,
+                address_line1=model_data.address_line1,
+                city=model_data.city,
+                state=model_data.state,
+                country=model_data.country,
+                total_area_floor=model_data.total_area_floor,
+                total_area_floor_indoor=model_data.total_area_floor_indoor,
+                dimension_units=model_data.units,
+                rooms_count=len(model_data.rooms),
+                rooms_summary=", ".join([room.label for room in model_data.rooms[:5]])  # Primeras 5 habitaciones
+            )
+            
+            print(f"✅ Matterport data imported successfully")
+            
+        else:
+            # Crear Property básico sin datos de Matterport
+            new_property = Property(
+                tour=new_tour,
+                data_source="manual",
+                matterport_import_success=False,
+                matterport_import_errors=["Matterport service not configured"]
+            )
+            import_status = "not_configured"
+            print(f"⚠️ Matterport service not available, creating tour without import")
+            
+    except Exception as e:
+        # Si falla la importación, crear Property básico
+        import_errors.append(str(e))
+        new_property = Property(
+            tour=new_tour,
+            data_source="manual",
+            matterport_import_success=False,
+            matterport_import_errors=import_errors
+        )
+        import_status = "failed"
+        print(f"❌ Matterport import failed: {e}")
+    
+    # Guardar todo en la base de datos
+    try:
+        db.add(new_tour)
+        await db.commit()
+        await db.refresh(new_tour)
+        
+        # Asociar y guardar Property
+        new_property.tour_id = new_tour.id
+        db.add(new_property)
+        await db.commit()
+        
+        print(f"✅ Tour created successfully: {new_tour.id}")
+        
+    except Exception as e:
+        await db.rollback()
+        print(f"❌ Database error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error saving tour: {str(e)}")
+    
+    # Preparar respuesta
+    return TourResponse(
+        id=new_tour.id,
+        name=new_tour.name,
+        matterport_model_id=new_tour.matterport_model_id,
+        agent_objective=new_tour.agent_objective,
+        is_active=new_tour.is_active,
+        created_at=new_tour.created_at,
+        matterport_data_imported=new_tour.matterport_data_imported,
+        matterport_share_url=new_tour.matterport_share_url,
+        property_data=property_data,
+        import_status=import_status
+    )
 
-# GET USER TOURS
 @app.get("/api/tours", response_model=List[TourResponse])
 async def get_user_tours(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Get all tours for the current user"""
-    result = await db.execute(select(Tour).where(Tour.owner_id == current_user.id))
-    tours = result.scalars().all()
-    return tours
+    """Get all tours for the current user - SIMPLE VERSION FIXED"""
+    try:
+        print(f"🔍 Getting tours for user: {current_user.id}")
+        
+        # QUERY SIMPLE SIN PROPERTY JOIN (EVITA ERRORES)
+        result = await db.execute(
+            select(Tour.id, Tour.name, Tour.matterport_model_id, Tour.agent_objective, 
+                   Tour.is_active, Tour.created_at, Tour.matterport_data_imported, 
+                   Tour.matterport_share_url, Tour.agent_id)
+            .where(Tour.owner_id == current_user.id)
+            .order_by(Tour.created_at.desc())
+        )
+        
+        tours = result.all()
+        print(f"✅ Found {len(tours)} tours")
+        
+        response_tours = []
+        for tour in tours:
+            tour_response = TourResponse(
+                id=tour.id,
+                name=tour.name,
+                matterport_model_id=tour.matterport_model_id,
+                agent_objective=tour.agent_objective,
+                is_active=tour.is_active,
+                created_at=tour.created_at,
+                matterport_data_imported=tour.matterport_data_imported or False,
+                matterport_share_url=tour.matterport_share_url,
+                property_data=None,  # Simplificado sin Property JOIN
+                import_status="not_imported" if not tour.matterport_data_imported else "success"
+            )
+            response_tours.append(tour_response)
+        
+        print(f"✅ Returning {len(response_tours)} tours successfully")
+        return response_tours
+        
+    except Exception as e:
+        print(f"❌ ERROR in get_user_tours: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch tours: {str(e)}"
+        )
 
-# DELETE TOUR
 @app.delete("/api/tours/{tour_id}")
 async def delete_tour(
     tour_id: int, 
@@ -456,13 +553,16 @@ async def delete_tour(
     if not tour:
         raise HTTPException(status_code=404, detail="Tour not found or access denied")
     
-    # Delete the tour
+    # Delete the tour (Property will be deleted by cascade)
     await db.delete(tour)
     await db.commit()
     
     return {"message": "Tour deleted successfully"}
 
-# CREATE LEAD
+# ========================================
+# LEADS ENDPOINTS
+# ========================================
+
 @app.post("/api/leads", response_model=LeadResponse)
 async def create_lead(lead: LeadCreate, db: AsyncSession = Depends(get_db)):
     """Create a new lead for a tour (public endpoint for widget)"""
@@ -483,7 +583,6 @@ async def create_lead(lead: LeadCreate, db: AsyncSession = Depends(get_db)):
     await db.refresh(new_lead)
     return new_lead
 
-# GET TOUR LEADS
 @app.get("/api/tours/{tour_id}/leads", response_model=List[LeadResponse])
 async def get_tour_leads(tour_id: int, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get all leads for a specific tour (owner only)"""
@@ -497,3 +596,8 @@ async def get_tour_leads(tour_id: int, db: AsyncSession = Depends(get_db), curre
     result = await db.execute(select(Lead).where(Lead.tour_id == tour_id))
     leads = result.scalars().all()
     return leads
+
+if __name__ == "__main__":
+    import uvicorn
+    print("🚀 Starting Vocaria API server...")
+    uvicorn.run(app, host="0.0.0.0", port=8001)
