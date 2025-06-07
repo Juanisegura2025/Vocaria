@@ -199,7 +199,7 @@ async def root():
 async def health_check():
     try:
         db_url = os.getenv('DATABASE_URL')
-        matterport_configured = bool(os.getenv('MATTERPORT_TOKEN_ID') and os.getenv('MATTERPORT_TOKEN_SECRET'))
+        matterport_configured = bool(os.getenv('MATTERPORT_API_KEY') and os.getenv('MATTERPORT_SECRET_KEY'))
         
         return {
             "status": "✅ healthy",
