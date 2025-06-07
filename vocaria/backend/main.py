@@ -597,6 +597,33 @@ async def get_tour_leads(tour_id: int, db: AsyncSession = Depends(get_db), curre
     leads = result.scalars().all()
     return leads
 
+@app.get("/api/tours/{tour_id}/context")
+async def get_tour_context(tour_id: str, db: AsyncSession = Depends(get_db)):
+    """Get real-time property context for widget"""
+    
+    # Get tour from database
+    result = await db.execute(select(Tour).where(Tour.id == int(tour_id)))
+    tour = result.scalar_one_or_none()
+    
+    if not tour:
+        raise HTTPException(404, "Tour not found")
+    
+    # Extract fresh data from Matterport
+    model_data = await matterport_service.extract_model_data(tour.matterport_model_id)
+    
+    # Return structured context
+    return {
+        "tour_id": tour_id,
+        "property_name": model_data.name,
+        "total_area": model_data.total_area_floor,
+        "rooms": [
+            {"name": room.label, "area": room.area_floor} 
+            for room in model_data.rooms
+        ],
+        "agent_context": matterport_service.format_for_agent_context(model_data),
+        "matterport_model_id": tour.matterport_model_id
+    }
+
 if __name__ == "__main__":
     import uvicorn
     print("🚀 Starting Vocaria API server...")

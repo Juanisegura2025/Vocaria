@@ -7,7 +7,7 @@ const WidgetTestPage: React.FC = () => {
     position: 'bottom-right' as const,
     agentName: 'Jorge',
     agentId: 'agent_01jwsmw7pcfp6r4hcebmbbnd43',
-    tourId: 'demo-tour'
+    tourId: '3'
   });
 
   const [testMode, setTestMode] = useState<'light' | 'dark' | 'contrast'>('light');

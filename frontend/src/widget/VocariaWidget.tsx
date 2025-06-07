@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useConversation } from '@11labs/react';
 import ChatBubble from './components/ChatBubble';
 import ChatPanel from './components/ChatPanel';
+import { fetchTourContext, TourContext } from './services/tourDataService';
 import './styles/widget.css';
 
 export interface WidgetConfig {
@@ -42,6 +43,7 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
   const [voiceMode, setVoiceMode] = useState(false);
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [showLeadForm, setShowLeadForm] = useState(false);
+  const [propertyData, setPropertyData] = useState<TourContext | null>(null);
 
   // ElevenLabs Conversation Hook
   const conversation = useConversation({
@@ -108,19 +110,66 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
     setMessages([initialMessage]);
   }, [greeting]);
 
-  // Room context simulation (Enhanced for real estate)
+  // Load real property data from backend
   useEffect(() => {
-    const rooms = [
-      { name: 'Living Room', area: 25 },
-      { name: 'Cocina', area: 15 },
-      { name: 'Dormitorio Principal', area: 20 },
-      { name: 'Baño Principal', area: 8 },
-      { name: 'Balcón', area: 6 },
-      { name: 'Vestidor', area: 4 }
-    ];
+    let isMounted = true;
+    
+    const loadPropertyData = async () => {
+      try {
+        const data = await fetchTourContext(tourId || '1');
+        
+        if (!isMounted) return;
+        
+        setPropertyData(data);
+        
+        // Set initial room to first real room
+        if (data.rooms.length > 0) {
+          setCurrentRoom({
+            name: data.rooms[0].name,
+            area: data.rooms[0].area
+          });
+        }
+      } catch (error) {
+        if (!isMounted) return;
+        
+        console.error('Error loading property data:', error);
+        // Fallback to demo data if API fails
+        const fallbackData: TourContext = {
+          tour_id: tourId || '1',
+          property_name: 'Demo Property',
+          total_area: 73.0,
+          rooms: [
+            { name: 'Living', area: 35.5 },
+            { name: 'Cocina', area: 12.8 },
+            { name: 'Dormitorio Principal', area: 18.2 },
+            { name: 'Baño', area: 6.5 }
+          ],
+          agent_context: 'Demo property context',
+          matterport_model_id: 'YKqfUWh6WN1'
+        };
+        setPropertyData(fallbackData);
+        if (fallbackData.rooms.length > 0) {
+          setCurrentRoom({
+            name: fallbackData.rooms[0].name,
+            area: fallbackData.rooms[0].area
+          });
+        }
+      }
+    };
+    
+    loadPropertyData();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [tourId]);
+
+  // Room context simulation with real data
+  useEffect(() => {
+    const rooms = propertyData?.rooms || [];
     
     const interval = setInterval(() => {
-      if (Math.random() > 0.8) { // Less frequent updates
+      if (Math.random() > 0.8 && rooms.length > 0) { // Less frequent updates
         const randomRoom = rooms[Math.floor(Math.random() * rooms.length)];
         setCurrentRoom(randomRoom);
         
@@ -139,7 +188,7 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
     }, 15000); // Every 15 seconds
 
     return () => clearInterval(interval);
-  }, [isOpen]);
+  }, [isOpen, propertyData?.rooms]);
 
   const handleVoiceMessage = (voiceMessage: any) => {
     if (voiceMessage.type === 'user_transcript') {
@@ -224,6 +273,16 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
       await conversation.startSession({ 
         agentId: agentId
       });
+      
+      // Send dynamic property context to agent as a system message
+      if (propertyData?.agent_context) {
+        setTimeout(() => {
+          // Use sendContextualUpdate to send system context to the agent
+          conversation.sendContextualUpdate(
+            `CONTEXTO DE LA PROPIEDAD: ${propertyData.agent_context}`
+          );
+        }, 1000);
+      }
       
       console.log('🎤 Voice conversation started');
     } catch (error) {
