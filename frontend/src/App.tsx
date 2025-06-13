@@ -24,6 +24,7 @@ import { MainLayout } from './layouts/MainLayout';
 
 // Import widget test page
 import WidgetTestPage from './widget/test-page/WidgetTestPage';
+import WidgetFrame from './pages/WidgetFrame';
 
 // Set dayjs locale
 dayjs.locale('es');
@@ -109,6 +110,7 @@ function App() {
                   <Route path="/transcripts" element={<TranscriptsPage />} />
                   <Route path="/analytics" element={<AnalyticsPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/widget-frame" element={<WidgetFrame />} />
                 </Route>
               </Route>
 

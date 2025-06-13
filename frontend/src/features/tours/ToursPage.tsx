@@ -1,10 +1,11 @@
 import { Button, Card, Table, Tag, Space, Input, Row, Col, Modal, message } from 'antd';
-import { Home, Search, Plus, Edit, Trash2, Eye } from 'lucide-react';
+import { Home, Search, Plus, Trash2, Eye, Upload as UploadIcon, Code, CheckCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toursService } from '../../services/toursService';
 import type { Tour } from '../../services/toursService';
 import ViewTourModal from '../../components/modals/ViewTourModal';
 import CreateTourModal from '../../components/modals/CreateTourModal';
+import PropertyUploadModal from '../../components/modals/PropertyUploadModal';
 
 const { Search: SearchInput } = Input;
 
@@ -19,6 +20,10 @@ const ToursPage = () => {
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+  
+  // New states for property upload
+  const [propertyUploadModalVisible, setPropertyUploadModalVisible] = useState(false);
+  const [selectedTourForUpload, setSelectedTourForUpload] = useState<Tour | null>(null);
   
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchText(e.target.value);
@@ -50,20 +55,20 @@ const ToursPage = () => {
 
   const handleDeleteTour = (tour: Tour) => {
     Modal.confirm({
-      title: '¿Estás seguro?',
-      content: `¿Quieres eliminar el tour "${tour.name}"? Esta acción no se puede deshacer.`,
-      okText: 'Sí, eliminar',
-      cancelText: 'Cancelar',
+      title: 'Are you sure?',
+      content: `Do you want to delete the tour "${tour.name}"? This action cannot be undone.`,
+      okText: 'Yes, delete',
+      cancelText: 'Cancel',
       okType: 'danger',
       onOk: async () => {
         try {
           setDeleteLoading(tour.id.toString());
           await toursService.deleteTour(tour.id);
-          message.success('Tour eliminado exitosamente');
+          message.success('Tour deleted successfully');
           // Reload tours
           await loadTours();
         } catch (error) {
-          message.error('Error al eliminar el tour');
+          message.error('Error deleting tour');
           console.error('Delete error:', error);
         } finally {
           setDeleteLoading(null);
@@ -74,8 +79,20 @@ const ToursPage = () => {
 
   const handleTourCreated = async () => {
     setCreateModalVisible(false);
-    message.success('Tour creado exitosamente');
+    message.success('Tour created successfully');
     await loadTours();
+  };
+
+  // New handler for property upload
+  const handleUploadPropertyData = (tour: Tour) => {
+    setSelectedTourForUpload(tour);
+    setPropertyUploadModalVisible(true);
+  };
+
+  // Handler for embed code (to be implemented)
+  const handleGetEmbedCode = (tour: Tour) => {
+    message.info(`Embed code for tour "${tour.name}" coming soon!`);
+    // TODO: Open EmbedCodeModal
   };
 
   // Safe filter function
@@ -106,7 +123,7 @@ const ToursPage = () => {
   const formatDate = (dateString: string) => {
     if (!dateString) return 'N/A';
     try {
-      return new Date(dateString).toLocaleDateString('es-AR', {
+      return new Date(dateString).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -114,13 +131,13 @@ const ToursPage = () => {
         minute: '2-digit'
       });
     } catch {
-      return 'Fecha inválida';
+      return 'Invalid date';
     }
   };
 
   const columns = [
     {
-      title: 'Nombre',
+      title: 'Name',
       dataIndex: 'name',
       key: 'name',
       render: (name: string, record: Tour) => (
@@ -129,9 +146,9 @@ const ToursPage = () => {
             <Home className="text-blue-600" size={16} />
           </div>
           <div className="flex-1">
-            <div className="font-medium">{name || 'Sin nombre'}</div>
+            <div className="font-medium">{name || 'No name'}</div>
             <div className="text-xs text-gray-500">ID: {record.id}</div>
-            {/* Mostrar información importada de Matterport */}
+            {/* Show imported Matterport info */}
             {record.matterport_data_imported && record.property_data && (
               <div className="flex items-center mt-1 text-xs">
                 <Tag color="green" className="mr-1 text-xs">
@@ -154,60 +171,58 @@ const ToursPage = () => {
       ),
     },
     {
-      title: 'Modelo Matterport',
+      title: 'Matterport Model',
       dataIndex: 'matterport_model_id',
       key: 'matterport',
       render: (modelId: string) => (
         <Tag color="blue" className="font-mono">
-          {modelId || 'No asignado'}
+          {modelId || 'Not assigned'}
         </Tag>
       ),
     },
     {
-      title: 'Estado',
+      title: 'Status',
       dataIndex: 'is_active',
       key: 'status',
       render: (isActive: boolean) => (
         <Tag color={isActive ? 'green' : 'red'}>
-          {isActive ? 'Activo' : 'Inactivo'}
+          {isActive ? 'Active' : 'Inactive'}
         </Tag>
       ),
     },
     {
-      title: 'Datos Matterport',
-      key: 'matterport_status',
-      render: (_: any, record: Tour) => {
-        if (record.matterport_data_imported) {
+      title: 'Data Status',
+      key: 'data_status',
+      width: 130,
+      render: (tour: Tour) => {
+        // Check if tour has real property data
+        const hasPropertyData = tour.matterport_data_imported && 
+          tour.property_data && 
+          tour.property_data.city; // If it has a city, it probably has real data
+        
+        if (hasPropertyData) {
           return (
-            <div className="space-y-1">
-              <Tag color="green" className="text-xs">
-                ✅ Importado
-              </Tag>
-              {record.property_data?.rooms_count && (
-                <div className="text-xs text-gray-500">
-                  {record.property_data.rooms_count} habitaciones
-                </div>
-              )}
-            </div>
+            <Tag color="green" icon={<CheckCircle size={14} />}>
+              Data OK
+            </Tag>
           );
-        } else {
-          const getStatusTag = (status?: string) => {
-            switch (status) {
-              case 'failed':
-                return <Tag color="red" className="text-xs">❌ Error</Tag>;
-              case 'not_configured':
-                return <Tag color="orange" className="text-xs">⚙️ No config.</Tag>;
-              default:
-                return <Tag color="gray" className="text-xs">➖ Manual</Tag>;
-            }
-          };
-          
-          return getStatusTag(record.import_status);
         }
-      },
+        
+        // Show upload button for ALL tours without property data
+        return (
+          <Button
+            size="small"
+            type="link"
+            icon={<UploadIcon size={14} />}
+            onClick={() => handleUploadPropertyData(tour)}
+          >
+            Add Data
+          </Button>
+        );
+      }
     },
     {
-      title: 'Fecha Creación',
+      title: 'Created',
       dataIndex: 'created_at',
       key: 'created_at',
       render: (date: string) => (
@@ -225,29 +240,30 @@ const ToursPage = () => {
       ),
     },
     {
-      title: 'Acciones',
+      title: 'Actions',
       key: 'actions',
+      width: 180,
       render: (_: any, record: Tour) => (
-        <Space size="middle">
+        <Space size="small">
           <Button 
             type="text" 
             icon={<Eye size={16} />} 
-            title="Ver detalles"
+            title="View details"
             onClick={() => handleViewTour(record)}
             className="text-blue-500"
           />
           <Button 
             type="text" 
-            icon={<Edit size={16} />} 
-            title="Editar"
-            className="text-blue-500"
-            onClick={() => message.info('Funcionalidad de edición pendiente')}
+            icon={<Code size={16} />} 
+            title="Get embed code"
+            onClick={() => handleGetEmbedCode(record)}
+            className="text-green-500"
           />
           <Button 
             type="text" 
             danger 
             icon={<Trash2 size={16} />} 
-            title="Eliminar"
+            title="Delete"
             loading={deleteLoading === record.id?.toString()}
             onClick={() => handleDeleteTour(record)}
           />
@@ -259,14 +275,14 @@ const ToursPage = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-semibold text-gray-800">Gestión de Tours</h1>
+        <h1 className="text-2xl font-semibold text-gray-800">Tour Management</h1>
         <Button 
           type="primary" 
           icon={<Plus size={16} />}
           className="flex items-center"
           onClick={handleCreateTour}
         >
-          Crear Tour
+          Create Tour
         </Button>
       </div>
 
@@ -275,7 +291,7 @@ const ToursPage = () => {
           <Row gutter={[16, 16]} align="middle">
             <Col xs={24} md={12} lg={6}>
               <SearchInput
-                placeholder="Buscar tours..."
+                placeholder="Search tours..."
                 prefix={<Search size={16} className="text-gray-400" />}
                 onChange={handleSearch}
                 allowClear
@@ -284,11 +300,11 @@ const ToursPage = () => {
             </Col>
             <Col xs={24} md={12} lg={18} className="text-right">
               <Space>
-                <Button onClick={() => message.info('Filtros avanzados pendientes')}>
-                  Filtrar
+                <Button onClick={() => message.info('Advanced filters coming soon')}>
+                  Filter
                 </Button>
-                <Button onClick={() => message.info('Exportación pendiente')}>
-                  Exportar
+                <Button onClick={() => message.info('Export coming soon')}>
+                  Export
                 </Button>
               </Space>
             </Col>
@@ -297,7 +313,7 @@ const ToursPage = () => {
 
         {error ? (
           <div className="p-4 text-red-600">
-            Error al cargar los tours: {error}
+            Error loading tours: {error}
           </div>
         ) : (
           <Table
@@ -310,7 +326,7 @@ const ToursPage = () => {
               showSizeChanger: true,
               showTotal: (total) => `Total ${total} tours`,
             }}
-            scroll={{ x: 1200 }} // Permite scroll horizontal en pantallas pequeñas
+            scroll={{ x: 1200 }} // Allow horizontal scroll on small screens
           />
         )}
       </Card>
@@ -329,6 +345,22 @@ const ToursPage = () => {
         visible={createModalVisible}
         onClose={() => setCreateModalVisible(false)}
         onSuccess={handleTourCreated}
+      />
+
+      <PropertyUploadModal
+        visible={propertyUploadModalVisible}
+        onClose={() => {
+          setPropertyUploadModalVisible(false);
+          setSelectedTourForUpload(null);
+        }}
+        onSuccess={async () => {
+          setPropertyUploadModalVisible(false);
+          setSelectedTourForUpload(null);
+          message.success('Property data uploaded successfully');
+          await loadTours();
+        }}
+        tourId={selectedTourForUpload?.id}
+        tourName={selectedTourForUpload?.name}
       />
     </div>
   );

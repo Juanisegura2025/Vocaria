@@ -1,6 +1,6 @@
 import axios, { AxiosError } from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8002';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001';
 
 // ✅ Crear instancia axios completamente independiente
 const apiClient = axios.create({
@@ -97,6 +97,26 @@ export interface CreateTourData {
   is_active?: boolean;
 }
 
+// NEW: Interface for manual property data upload
+export interface ManualPropertyData {
+  property_name: string;
+  description?: string;
+  address_line1: string;
+  city: string;
+  state?: string;
+  country: string;
+  total_area: number;
+  bedrooms: number;
+  bathrooms: number;
+  price?: number;
+  currency?: string;
+  property_type: string;
+  amenities?: string;
+  year_built?: number;
+  parking_spaces?: number;
+  rooms_detail?: string;
+}
+
 class ToursService {
   async getTours(): Promise<Tour[]> {
     try {
@@ -172,6 +192,87 @@ class ToursService {
       return response.data;
     } catch (error: unknown) {
       console.error('Error creating lead:', error);
+      throw error;
+    }
+  }
+
+  // NEW: Upload manual property data
+  async uploadPropertyData(tourId: number, propertyData: ManualPropertyData): Promise<Tour> {
+    try {
+      console.log('📤 Uploading manual property data for tour:', tourId);
+      
+      // Real API call
+      const response = await apiClient.put<Tour>(
+        `/api/tours/${tourId}/manual-data`,
+        propertyData
+      );
+      console.log('✅ Property data uploaded successfully:', response.data);
+      return response.data;
+      
+    } catch (error: unknown) {
+      console.error('❌ Error uploading property data:', error);
+      if (error instanceof AxiosError) {
+        console.error('Upload error details:', {
+          status: error.response?.status,
+          data: error.response?.data,
+          message: error.message
+        });
+      }
+      throw error;
+    }
+  }
+
+  // NEW: Upload property files (PDFs, images, etc.)
+  async uploadPropertyFiles(tourId: number, files: File[]): Promise<any> {
+    try {
+      console.log('📤 Uploading property files for tour:', tourId);
+      
+      // For now, simulate the upload since backend endpoint might not exist yet
+      // In production, uncomment the real API call below and remove the simulation
+      
+      /* Real API call (uncomment when backend is ready):
+      const formData = new FormData();
+      files.forEach((file) => {
+        formData.append('files', file);
+      });
+      
+      const response = await apiClient.post(
+        `/api/tours/${tourId}/property/files`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
+      
+      console.log('✅ Files uploaded successfully:', response.data);
+      return response.data;
+      */
+      
+      // TEMPORARY: Simulate API call for testing
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      console.log('✅ Files uploaded successfully (simulated):', files.map(f => f.name));
+      return {
+        message: `Successfully uploaded ${files.length} files`,
+        files: files.map(f => ({
+          filename: f.name,
+          size: f.size,
+          type: f.type
+        })),
+        tour_id: tourId
+      };
+      
+    } catch (error: unknown) {
+      console.error('❌ Error uploading files:', error);
+      if (error instanceof AxiosError) {
+        console.error('File upload error details:', {
+          status: error.response?.status,
+          data: error.response?.data,
+          message: error.message
+        });
+      }
       throw error;
     }
   }

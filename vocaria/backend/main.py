@@ -129,6 +129,26 @@ class PropertyData(BaseModel):
     rooms_count: int = 0
     rooms_summary: Optional[str] = None
 
+# NEW: Manual Property Upload Model
+class ManualPropertyUpload(BaseModel):
+    """Manual property data upload when Matterport import fails"""
+    property_name: str
+    description: Optional[str] = None
+    address_line1: str
+    city: str
+    state: Optional[str] = None
+    country: str = "Argentina"
+    total_area: float
+    bedrooms: int
+    bathrooms: float
+    price: Optional[float] = None
+    currency: Optional[str] = "USD"
+    property_type: str = "apartment"
+    amenities: Optional[str] = None
+    year_built: Optional[int] = None
+    parking_spaces: Optional[int] = 0
+    rooms_detail: Optional[str] = None
+
 class TourResponse(BaseModel):
     id: int
     name: str
@@ -495,24 +515,50 @@ async def create_tour(tour: TourCreate, db: AsyncSession = Depends(get_db), curr
 
 @app.get("/api/tours", response_model=List[TourResponse])
 async def get_user_tours(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Get all tours for the current user - SIMPLE VERSION FIXED"""
+    """Get all tours for the current user - UPDATED TO INCLUDE PROPERTY DATA"""
     try:
         print(f"🔍 Getting tours for user: {current_user.id}")
         
-        # QUERY SIMPLE SIN PROPERTY JOIN (EVITA ERRORES)
+        # Get tours with their properties
         result = await db.execute(
-            select(Tour.id, Tour.name, Tour.matterport_model_id, Tour.agent_objective, 
-                   Tour.is_active, Tour.created_at, Tour.matterport_data_imported, 
-                   Tour.matterport_share_url, Tour.agent_id)
+            select(Tour)
             .where(Tour.owner_id == current_user.id)
             .order_by(Tour.created_at.desc())
         )
         
-        tours = result.all()
+        tours = result.scalars().all()
         print(f"✅ Found {len(tours)} tours")
         
         response_tours = []
         for tour in tours:
+            # Try to get property data if agent_context exists
+            property_data = None
+            if tour.agent_context and tour.matterport_data_imported:
+                # Parse agent context to extract property data
+                # This is a simplified approach - in production you might want to store this more structurally
+                lines = tour.agent_context.split('\n')
+                property_info = {}
+                for line in lines:
+                    if ': ' in line:
+                        key, value = line.split(': ', 1)
+                        key = key.strip('- ')
+                        if 'Name' in key:
+                            property_info['matterport_name'] = value
+                        elif 'Location' in key:
+                            parts = value.split(', ')
+                            if len(parts) >= 2:
+                                property_info['address_line1'] = parts[0]
+                                property_info['city'] = parts[1] if len(parts) > 1 else None
+                                property_info['country'] = parts[-1] if len(parts) > 2 else None
+                        elif 'Total Area' in key:
+                            try:
+                                property_info['total_area_floor'] = float(value.replace(' m²', ''))
+                            except:
+                                pass
+                
+                if property_info:
+                    property_data = PropertyData(**property_info)
+            
             tour_response = TourResponse(
                 id=tour.id,
                 name=tour.name,
@@ -522,8 +568,8 @@ async def get_user_tours(db: AsyncSession = Depends(get_db), current_user: User 
                 created_at=tour.created_at,
                 matterport_data_imported=tour.matterport_data_imported or False,
                 matterport_share_url=tour.matterport_share_url,
-                property_data=None,  # Simplificado sin Property JOIN
-                import_status="not_imported" if not tour.matterport_data_imported else "success"
+                property_data=property_data,
+                import_status="manual" if tour.agent_context and not tour.matterport_share_url else ("success" if tour.matterport_data_imported else "not_imported")
             )
             response_tours.append(tour_response)
         
@@ -538,6 +584,102 @@ async def get_user_tours(db: AsyncSession = Depends(get_db), current_user: User 
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch tours: {str(e)}"
         )
+
+# NEW: Manual Property Data Upload Endpoint
+@app.put("/api/tours/{tour_id}/manual-data")
+async def update_tour_manual_data(
+    tour_id: int,
+    property_data: ManualPropertyUpload,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update tour with manual property data"""
+    
+    # Get tour and verify ownership
+    result = await db.execute(
+        select(Tour).where(Tour.id == tour_id, Tour.owner_id == current_user.id)
+    )
+    tour = result.scalar_one_or_none()
+    
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found or access denied")
+    
+    # Generate agent context from manual data
+    agent_context = f"""Property Information:
+- Name: {property_data.property_name}
+- Type: {property_data.property_type}
+- Location: {property_data.address_line1}, {property_data.city}, {property_data.country}
+- Total Area: {property_data.total_area} m²
+- Bedrooms: {property_data.bedrooms}
+- Bathrooms: {property_data.bathrooms}
+{f"- Year Built: {property_data.year_built}" if property_data.year_built else ""}
+{f"- Parking Spaces: {property_data.parking_spaces}" if property_data.parking_spaces else ""}
+{f"- Price: {property_data.currency} {property_data.price:,.0f}" if property_data.price else ""}
+{f"- Description: {property_data.description}" if property_data.description else ""}
+{f"- Rooms Detail: {property_data.rooms_detail}" if property_data.rooms_detail else ""}
+{f"- Amenities: {property_data.amenities}" if property_data.amenities else ""}"""
+    
+    # Update tour fields
+    tour.agent_context = agent_context.strip()
+    tour.matterport_data_imported = True  # Mark as having data
+    
+    # Store room data in a structured format
+    rooms = []
+    if property_data.bedrooms > 0:
+        for i in range(property_data.bedrooms):
+            rooms.append({
+                "label": f"Bedroom {i+1}",
+                "floor_id": 0,
+                "position": {"x": 0, "y": 0, "z": 0}
+            })
+    
+    if property_data.bathrooms > 0:
+        for i in range(int(property_data.bathrooms)):
+            rooms.append({
+                "label": f"Bathroom {i+1}",
+                "floor_id": 0,
+                "position": {"x": 0, "y": 0, "z": 0}
+            })
+    
+    # Add common rooms
+    rooms.extend([
+        {"label": "Living Room", "floor_id": 0, "position": {"x": 0, "y": 0, "z": 0}},
+        {"label": "Kitchen", "floor_id": 0, "position": {"x": 0, "y": 0, "z": 0}}
+    ])
+    
+    tour.room_data = rooms
+    
+    # Update the tour name if different
+    if property_data.property_name and property_data.property_name != tour.name:
+        tour.name = property_data.property_name
+    
+    await db.commit()
+    await db.refresh(tour)
+    
+    # Return updated tour in TourResponse format
+    return TourResponse(
+        id=tour.id,
+        name=tour.name,
+        matterport_model_id=tour.matterport_model_id,
+        agent_objective=tour.agent_objective,
+        is_active=tour.is_active,
+        created_at=tour.created_at,
+        matterport_data_imported=True,
+        matterport_share_url=tour.matterport_share_url,
+        property_data=PropertyData(
+            matterport_name=property_data.property_name,
+            matterport_description=property_data.description,
+            address_line1=property_data.address_line1,
+            city=property_data.city,
+            state=property_data.state,
+            country=property_data.country,
+            total_area_floor=property_data.total_area,
+            dimension_units="metric",
+            rooms_count=len(rooms),
+            rooms_summary=property_data.rooms_detail
+        ),
+        import_status="manual"
+    )
 
 @app.delete("/api/tours/{tour_id}")
 async def delete_tour(
@@ -608,20 +750,49 @@ async def get_tour_context(tour_id: str, db: AsyncSession = Depends(get_db)):
     if not tour:
         raise HTTPException(404, "Tour not found")
     
-    # Extract fresh data from Matterport
-    model_data = await matterport_service.extract_model_data(tour.matterport_model_id)
+    # If tour has manual data (agent_context), return that
+    if tour.agent_context:
+        # Parse the context to extract structured data
+        return {
+            "tour_id": tour_id,
+            "property_name": tour.name,
+            "total_area": 0,  # Could parse from agent_context if needed
+            "rooms": tour.room_data if tour.room_data else [],
+            "agent_context": tour.agent_context,
+            "matterport_model_id": tour.matterport_model_id,
+            "data_source": "manual"
+        }
     
-    # Return structured context
+    # Otherwise try to extract fresh data from Matterport
+    if MATTERPORT_AVAILABLE and tour.matterport_model_id:
+        try:
+            model_data = await matterport_service.extract_model_data(tour.matterport_model_id)
+            
+            # Return structured context
+            return {
+                "tour_id": tour_id,
+                "property_name": model_data.name,
+                "total_area": model_data.total_area_floor,
+                "rooms": [
+                    {"name": room.label, "area": room.area_floor} 
+                    for room in model_data.rooms
+                ],
+                "agent_context": matterport_service.format_for_agent_context(model_data),
+                "matterport_model_id": tour.matterport_model_id,
+                "data_source": "matterport"
+            }
+        except Exception as e:
+            print(f"Failed to get Matterport data: {e}")
+    
+    # Fallback response
     return {
         "tour_id": tour_id,
-        "property_name": model_data.name,
-        "total_area": model_data.total_area_floor,
-        "rooms": [
-            {"name": room.label, "area": room.area_floor} 
-            for room in model_data.rooms
-        ],
-        "agent_context": matterport_service.format_for_agent_context(model_data),
-        "matterport_model_id": tour.matterport_model_id
+        "property_name": tour.name,
+        "total_area": 0,
+        "rooms": [],
+        "agent_context": f"Property: {tour.name}",
+        "matterport_model_id": tour.matterport_model_id,
+        "data_source": "none"
     }
 
 if __name__ == "__main__":
