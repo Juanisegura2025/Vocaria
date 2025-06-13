@@ -501,7 +501,7 @@ const TranscriptsPage: React.FC = () => {
             {/* Messages */}
             <div className="max-h-96 overflow-y-auto">
               <div className="space-y-3">
-                {selectedTranscript.messages.map((message, index) => (
+                {selectedTranscript.messages.map((message, _index) => (
                   <div key={message.id} className={`flex ${message.is_user ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                       message.is_user 
