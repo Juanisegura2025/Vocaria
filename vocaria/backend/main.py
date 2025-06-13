@@ -3,7 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, insert, text
+from sqlalchemy import select, insert, text, func  # ✅ FIXED: Added func
+from sqlalchemy.sql import extract  # ✅ FIXED: Added extract
 from contextlib import asynccontextmanager
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List, Dict, Any
@@ -808,16 +809,20 @@ async def get_analytics_stats(
 ):
     """Get analytics statistics for the current user"""
     try:
+        print(f"🔍 Analytics request for user: {current_user.id}")
+        
         # Parse dates or use defaults
         if start_date:
-            start = datetime.fromisoformat(start_date)
+            start = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
         else:
             start = datetime.now() - timedelta(days=30)
         
         if end_date:
-            end = datetime.fromisoformat(end_date)
+            end = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
         else:
             end = datetime.now()
+        
+        print(f"📊 Date range: {start} to {end}")
         
         # Get user's tours
         tours_query = select(Tour).where(Tour.owner_id == current_user.id)
@@ -825,7 +830,10 @@ async def get_analytics_stats(
         user_tours = tours_result.scalars().all()
         tour_ids = [tour.id for tour in user_tours]
         
+        print(f"🏠 Found {len(user_tours)} tours for user")
+        
         if not tour_ids:
+            print("⚠️ No tours found, returning empty analytics")
             return {
                 "total_leads": 0,
                 "active_tours": 0,
@@ -833,7 +841,11 @@ async def get_analytics_stats(
                 "conversion_rate": 0.0,
                 "leads_by_month": [],
                 "top_tours": [],
-                "recent_activity": []
+                "recent_activity": [],
+                "date_range": {
+                    "start": start.isoformat(),
+                    "end": end.isoformat()
+                }
             }
         
         # Total leads
@@ -844,6 +856,8 @@ async def get_analytics_stats(
         )
         total_leads_result = await db.execute(leads_query)
         total_leads = total_leads_result.scalar() or 0
+        
+        print(f"📧 Total leads: {total_leads}")
         
         # Active tours
         active_tours = len([tour for tour in user_tours if tour.is_active])
@@ -870,8 +884,8 @@ async def get_analytics_stats(
         
         # Format leads by month
         leads_by_month = []
-        month_names = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 
-                      'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dec']
+        month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
         
         for row in leads_by_month_data:
             month_name = month_names[int(row.month) - 1] if row.month else 'Unknown'
@@ -933,7 +947,7 @@ async def get_analytics_stats(
             for row in recent_leads_data
         ]
         
-        return {
+        analytics_result = {
             "total_leads": total_leads,
             "active_tours": active_tours,
             "total_tours": len(user_tours),
@@ -947,8 +961,13 @@ async def get_analytics_stats(
             }
         }
         
+        print(f"✅ Analytics calculated successfully: {analytics_result}")
+        return analytics_result
+        
     except Exception as e:
-        print(f"Analytics error: {e}")
+        print(f"❌ Analytics error: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(500, f"Error calculating analytics: {str(e)}")
 
 # ========================================
