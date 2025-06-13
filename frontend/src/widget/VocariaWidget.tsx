@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useConversation } from '@11labs/react';
+import { conversationService } from './services/conversationService';
 import ChatBubble from './components/ChatBubble';
 import ChatPanel from './components/ChatPanel';
 import { fetchTourContext, TourContext } from './services/tourDataService';
@@ -28,8 +29,17 @@ interface Message {
 
 type VoiceState = 'idle' | 'connecting' | 'connected' | 'listening' | 'speaking' | 'error' | 'disconnected';
 
-const VocariaWidget: React.FC<WidgetConfig> = ({
-  primaryColor = 'var(--primary)', // Using design system
+interface VocariaWidgetProps {
+  primaryColor?: string;
+  position?: 'bottom-right' | 'bottom-left';
+  agentName?: string;
+  agentId?: string;
+  tourId?: string;
+  greeting?: string;
+}
+
+const VocariaWidget: React.FC<VocariaWidgetProps> = ({
+  primaryColor = 'var(--primary)',
   position = 'bottom-right',
   agentName = 'Jorge',
   agentId = '',
@@ -39,7 +49,35 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [currentRoom, setCurrentRoom] = useState<{ name: string; area?: number } | null>(null);
+  // Define Room interface for better type safety
+  interface Room {
+    name: string;
+    area?: number;
+  }
+  
+  const [currentRoom, setCurrentRoom] = useState<Room | undefined>(undefined);
+  
+  // Helper function to safely create room context
+  const getRoomContext = (room: Room | undefined) => 
+    room ? { name: room.name, area: room.area } : undefined;
+    
+  // Create a safe room context reference
+  const roomContext = getRoomContext(currentRoom);
+  
+  // Helper function to safely use room context in message objects
+  const createMessage = (
+    content: string, 
+    isUser: boolean, 
+    isVoice = false, 
+    customId?: string
+  ): Message => ({
+    id: customId || Date.now().toString(),
+    content,
+    isUser,
+    timestamp: new Date(),
+    isVoice,
+    roomContext
+  });
   const [voiceMode, setVoiceMode] = useState(false);
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [showLeadForm, setShowLeadForm] = useState(false);
@@ -52,13 +90,11 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
       setVoiceState('connected');
       
       // Add system message
-      const systemMessage: Message = {
-        id: Date.now().toString() + '_voice_connected',
-        content: 'Voz conectada. ¡Puedes hablar ahora!',
-        isUser: false,
-        timestamp: new Date(),
-        isVoice: true
-      };
+      const systemMessage = createMessage(
+        'Voz conectada. ¡Puedes hablar ahora!',
+        false,
+        true
+      );
       setMessages(prev => [...prev, systemMessage]);
     },
     onDisconnect: () => {
@@ -67,12 +103,11 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
       setVoiceMode(false);
       
       // Add system message
-      const systemMessage: Message = {
-        id: Date.now().toString() + '_voice_disconnected',
-        content: 'Conversación por voz finalizada. Puedes continuar escribiendo.',
-        isUser: false,
-        timestamp: new Date()
-      };
+      const systemMessage = createMessage(
+        'Conversación por voz finalizada. Puedes continuar escribiendo.',
+        false,
+        true
+      );
       setMessages(prev => [...prev, systemMessage]);
     },
     onMessage: (message: any) => {
@@ -84,12 +119,11 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
       setVoiceState('error');
       
       // Add error message
-      const errorMessage: Message = {
-        id: Date.now().toString() + '_voice_error',
-        content: 'Error en la conexión de voz. Puedes continuar con el chat de texto.',
-        isUser: false,
-        timestamp: new Date()
-      };
+      const errorMessage = createMessage(
+        'Error en la conexión de voz. Puedes continuar con el chat de texto.',
+        false,
+        true
+      );
       setMessages(prev => [...prev, errorMessage]);
       
       setTimeout(() => {
@@ -101,14 +135,56 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
 
   // Initialize with greeting message
   useEffect(() => {
-    const initialMessage: Message = {
-      id: '1',
-      content: greeting,
-      isUser: false,
-      timestamp: new Date()
-    };
+    const initialMessage = createMessage(greeting, false);
     setMessages([initialMessage]);
+    
+    // Track greeting message
+    conversationService.addMessage(
+      greeting, 
+      false, 
+      'system', 
+      roomContext
+    ).catch(console.error);
   }, [greeting]);
+  
+  // Conversation tracking
+  useEffect(() => {
+    let isMounted = true;
+    
+    const startConversationTracking = async () => {
+      try {
+        if (!conversationService.isConversationActive()) {
+          await conversationService.startConversation(
+            tourId || '1',
+            currentRoom
+          );
+          
+          if (isMounted) {
+            console.log('📝 Conversation tracking started');
+          }
+        }
+      } catch (error) {
+        console.error('Failed to start conversation tracking:', error);
+      }
+    };
+    
+    if (isOpen && !conversationService.isConversationActive()) {
+      startConversationTracking();
+    }
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, tourId, currentRoom]);
+  
+  // Cleanup conversation on unmount
+  useEffect(() => {
+    return () => {
+      if (conversationService.isConversationActive()) {
+        conversationService.endConversation();
+      }
+    };
+  }, []);
 
   // Load real property data from backend
   useEffect(() => {
@@ -175,13 +251,11 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
         
         // Add room context to current message if widget is open
         if (isOpen) {
-          const roomMessage: Message = {
-            id: Date.now().toString() + '_room',
-            content: `Has ingresado al ${randomRoom.name}${randomRoom.area ? ` (${randomRoom.area} m²)` : ''}.`,
-            isUser: false,
-            timestamp: new Date(),
-            roomContext: randomRoom
-          };
+          const roomMessage = createMessage(
+            `Has ingresado al ${randomRoom.name}${randomRoom.area ? ` (${randomRoom.area} m²)` : ''}.`,
+            false,
+            false
+          );
           setMessages(prev => [...prev, roomMessage]);
         }
       }
@@ -190,33 +264,52 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
     return () => clearInterval(interval);
   }, [isOpen, propertyData?.rooms]);
 
-  const handleVoiceMessage = (voiceMessage: any) => {
+  const handleVoiceMessage = async (voiceMessage: any) => {
     if (voiceMessage.type === 'user_transcript') {
-      // User spoke
-      if (voiceMessage.message && voiceMessage.message.trim()) {
-        const userMessage: Message = {
-          id: Date.now().toString(),
-          content: voiceMessage.message,
-          isUser: true,
-          timestamp: new Date(),
-          isVoice: true,
-          roomContext: currentRoom || undefined
-        };
+      if (voiceMessage.message?.trim()) {
+        const userMessage = createMessage(
+          voiceMessage.message,
+          true,
+          true
+        );
         setMessages(prev => [...prev, userMessage]);
+        
+        // Track message in database
+        try {
+          await conversationService.addMessage(
+            voiceMessage.message,
+            true,
+            'voice',
+            roomContext,
+            voiceMessage.audio_duration,
+            voiceMessage.confidence_score
+          );
+        } catch (error) {
+          console.error('Failed to track user voice message:', error);
+        }
       }
     } else if (voiceMessage.type === 'agent_response') {
-      // Agent responded
       if (voiceMessage.message) {
-        const agentMessage: Message = {
-          id: Date.now().toString() + '_agent',
-          content: voiceMessage.message,
-          isUser: false, 
-          timestamp: new Date(),
-          isVoice: true,
-          roomContext: currentRoom || undefined
-        };
+        const agentMessage = createMessage(
+          voiceMessage.message,
+          false,
+          true
+        );
         setMessages(prev => [...prev, agentMessage]);
         
+        // Track agent message in database
+        try {
+          await conversationService.addMessage(
+            voiceMessage.message,
+            false,
+            'voice',
+            currentRoom || undefined,
+            voiceMessage.response_duration
+          );
+        } catch (error) {
+          console.error('Failed to track agent voice message:', error);
+        }
+
         // Enhanced lead capture triggers
         const leadTriggers = [
           'contacto', 'email', 'teléfono', 'información',
@@ -246,12 +339,10 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
     if (!agentId) {
       console.error('🎤 No agent ID provided');
       
-      const errorMessage: Message = {
-        id: Date.now().toString() + '_no_agent',
-        content: 'Error: Agent ID no configurado. Contacta al administrador del sitio.',
-        isUser: false,
-        timestamp: new Date()
-      };
+      const errorMessage = createMessage(
+        'Error: Agent ID no configurado. Contacta al administrador del sitio.',
+        false
+      );
       setMessages(prev => [...prev, errorMessage]);
       return;
     }
@@ -261,12 +352,10 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
       setVoiceMode(true);
       
       // Add connecting message
-      const connectingMessage: Message = {
-        id: Date.now().toString() + '_connecting',
-        content: 'Conectando con el asistente de voz...',
-        isUser: false,
-        timestamp: new Date()
-      };
+      const connectingMessage = createMessage(
+        'Conectando con el asistente de voz...',
+        false
+      );
       setMessages(prev => [...prev, connectingMessage]);
       
       // Start conversation with ElevenLabs agent
@@ -290,12 +379,10 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
       setVoiceState('error');
       setVoiceMode(false);
       
-      const fallbackMessage: Message = {
-        id: Date.now().toString() + '_fallback',
-        content: 'No se pudo iniciar la conversación por voz. Continúa con el chat de texto.',
-        isUser: false,
-        timestamp: new Date()
-      };
+      const fallbackMessage = createMessage(
+        'No se pudo iniciar la conversación por voz. Continúa con el chat de texto.',
+        false
+      );
       setMessages(prev => [...prev, fallbackMessage]);
     }
   };
@@ -307,16 +394,21 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
   };
 
   const sendTextMessage = (text: string) => {
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      content: text,
-      isUser: true,
-      timestamp: new Date(),
-      roomContext: currentRoom || undefined
-    };
-
+    const userMessage = createMessage(text, true);
     setMessages(prev => [...prev, userMessage]);
     setIsTyping(true);
+    
+    // Track user message in database
+    if (conversationService.isConversationActive()) {
+      conversationService.addMessage(
+        text,
+        true,
+        'text',
+        roomContext
+      ).catch(error => {
+        console.error('Failed to track user message:', error);
+      });
+    }
 
     // Enhanced agent responses with real estate context
     const getContextualResponse = () => {
@@ -351,16 +443,25 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
 
     // Simulate agent response
     setTimeout(() => {
-      const agentMessage: Message = {
-        id: Date.now().toString() + '_agent',
-        content: getContextualResponse(),
-        isUser: false,
-        timestamp: new Date(),
-        roomContext: currentRoom || undefined
-      };
-
+      const agentMessage = createMessage(
+        getContextualResponse(),
+        false
+      );
       setMessages(prev => [...prev, agentMessage]);
       setIsTyping(false);
+      
+      // Track agent response in database
+      if (conversationService.isConversationActive()) {
+        const responseText = getContextualResponse();
+        conversationService.addMessage(
+          responseText,
+          false,
+          'text',
+          roomContext
+        ).catch(error => {
+          console.error('Failed to track agent response:', error);
+        });
+      }
 
       // Smart lead form trigger
       const leadTriggers = [
@@ -388,46 +489,54 @@ const VocariaWidget: React.FC<WidgetConfig> = ({
         timestamp: new Date().toISOString()
       });
       
-      const thankYouMessage: Message = {
-        id: Date.now().toString() + '_thanks',
-        content: `¡Gracias ${leadData.email.split('@')[0]}! Un agente especializado se pondrá en contacto contigo pronto para coordinar una visita y brindarte toda la información que necesites.`,
-        isUser: false,
-        timestamp: new Date()
-      };
-
+      // End conversation with lead capture
+      await conversationService.endConversation(
+        true,
+        leadData.email,
+        leadData.phone
+      );
+      
+      const thankYouMessage = createMessage(
+        `¡Gracias ${leadData.email.split('@')[0]}! Un agente especializado se pondrá en contacto contigo pronto para coordinar una visita y brindarte toda la información que necesites.`,
+        false
+      );
       setMessages(prev => [...prev, thankYouMessage]);
       setShowLeadForm(false);
       
-      // In real implementation, call your backend:
-      // await leadsService.createLead({ 
-      //   email: leadData.email, 
-      //   phone: leadData.phone,
-      //   tourId: tourId,
-      //   roomContext: currentRoom,
-      //   source: voiceMode ? 'voice' : 'text'
-      // });
+      // Track message in database
+      if (conversationService.isConversationActive()) {
+        conversationService.addMessage(
+          thankYouMessage.content,
+          false,
+          'text',
+          roomContext
+        ).catch(error => {
+          console.error('Failed to track message:', error);
+        });
+      } else {
+        console.warn('No active conversation to track message');
+      }
       
     } catch (error) {
       console.error('Failed to save lead:', error);
       
-      const errorMessage: Message = {
-        id: Date.now().toString() + '_lead_error',
-        content: 'Hubo un problema al guardar tu información. Por favor, intenta nuevamente o contacta directamente al agente.',
-        isUser: false,
-        timestamp: new Date()
-      };
+      const errorMessage = createMessage(
+        'Hubo un problema al guardar tu información. Por favor, intenta nuevamente o contacta directamente al agente.',
+        false
+      );
       setMessages(prev => [...prev, errorMessage]);
     }
   };
 
   // Enhanced widget styling with design system
-  const widgetStyle = React.useMemo(() => ({
+  // Create widget styles with proper type casting
+  const widgetStyle: React.CSSProperties & Record<`--widget-${string}`, string> = {
     '--widget-primary': primaryColor,
     '--widget-primary-light': primaryColor.replace(')', ', 0.8)').replace('var(--primary)', 'var(--primary-light)'),
     '--widget-primary-dark': primaryColor.replace(')', ', 1.2)').replace('var(--primary)', 'var(--primary-dark)'),
     '--widget-primary-50': primaryColor.replace(')', ', 0.1)').replace('var(--primary)', 'var(--primary-50)')
-  } as React.CSSProperties), [primaryColor]);
-
+  };
+  
   return (
     <div 
       className={`vocaria-widget ${position}`}

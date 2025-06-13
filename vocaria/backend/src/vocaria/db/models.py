@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import (
     Boolean, Column, DateTime, Enum as SQLEnum, ForeignKey, 
-    Integer, JSON, String, Text, event
+    Integer, JSON, String, Text, event, Float
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -73,6 +73,7 @@ class Tour(Base):
     owner_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     owner = relationship("User", back_populates="tours")
     leads = relationship("Lead", back_populates="tour", cascade="all, delete-orphan")
+    conversations = relationship("Conversation", back_populates="tour", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<Tour {self.name}>"
@@ -91,6 +92,62 @@ class Lead(Base):
     # Relationships
     tour_id = Column(PG_UUID(as_uuid=True), ForeignKey("tours.id"), nullable=False)
     tour = relationship("Tour", back_populates="leads")
+    conversation_id = Column(PG_UUID(as_uuid=True), ForeignKey("conversations.id"), nullable=True)
+    conversation = relationship("Conversation", back_populates="lead")
 
     def __repr__(self) -> str:
         return f"<Lead {self.email}>"
+
+class Conversation(Base):
+    """Conversation model for storing chat sessions with visitors."""
+    __tablename__ = "conversations"
+    
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
+    tour_id = Column(PG_UUID(as_uuid=True), ForeignKey("tours.id"), nullable=False)
+    visitor_id = Column(String(255), nullable=True, index=True)
+    lead_id = Column(PG_UUID(as_uuid=True), ForeignKey("leads.id"), nullable=True)
+    
+    started_at = Column(DateTime(timezone=True), server_default=func.now())
+    ended_at = Column(DateTime(timezone=True), nullable=True)
+    duration_seconds = Column(Integer, nullable=True)
+    message_count = Column(Integer, default=0)
+    
+    room_context = Column(JSONB, nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    ip_address = Column(String(50), nullable=True)
+    
+    lead_captured = Column(Boolean, default=False)
+    visitor_email = Column(String(255), nullable=True)
+    visitor_phone = Column(String(50), nullable=True)
+    
+    # Relationships
+    tour = relationship("Tour", back_populates="conversations")
+    messages = relationship("ConversationMessage", back_populates="conversation", cascade="all, delete-orphan")
+    lead = relationship("Lead", back_populates="conversation")
+    
+    def __repr__(self) -> str:
+        return f"<Conversation {self.id}>"
+
+
+class ConversationMessage(Base):
+    """Individual messages within a conversation."""
+    __tablename__ = "conversation_messages"
+    
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4, index=True)
+    conversation_id = Column(PG_UUID(as_uuid=True), ForeignKey("conversations.id"), nullable=False)
+    
+    content = Column(Text, nullable=False)
+    is_user = Column(Boolean, nullable=False)
+    message_type = Column(String(50), default="text")
+    
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    room_context = Column(JSONB, nullable=True)
+    
+    audio_duration = Column(Float, nullable=True)
+    confidence_score = Column(Float, nullable=True)
+    
+    # Relationships
+    conversation = relationship("Conversation", back_populates="messages")
+    
+    def __repr__(self) -> str:
+        return f"<Message {str(self.id)[:8]}>"

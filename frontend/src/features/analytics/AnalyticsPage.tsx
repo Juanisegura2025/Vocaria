@@ -1,237 +1,308 @@
-import { Card, Row, Col, Select, DatePicker, Statistic, Space, Button } from 'antd';
-import { Download } from 'lucide-react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchApi } from '../../api/client';
+// Update frontend/src/features/analytics/AnalyticsPage.tsx
+
+import React, { useState, useEffect } from 'react';
+import { Card, Col, Row, DatePicker, Select, Button, Spin, Alert, Empty } from 'antd';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Download, TrendingUp, Users, Home, Clock } from 'lucide-react';
+import { analyticsService, AnalyticsStats } from '../../services/analyticsService';
+import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+const AnalyticsPage: React.FC = () => {
+  const [loading, setLoading] = useState(true);
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsStats | null>(null);
+  const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
+    dayjs().subtract(30, 'day'),
+    dayjs()
+  ]);
+  const [selectedTours, setSelectedTours] = useState<string>('all');
+  const [error, setError] = useState<string | null>(null);
 
-interface AnalyticsData {
-  totalLeads: number;
-  totalTours: number;
-  conversionRate: number;
-  avgSessionDuration: string;
-  leadsBySource: Array<{
-    name: string;
-    value: number;
-  }>;
-  leadsByTour: Array<{
-    name: string;
-    leads: number;
-  }>;
-  leadsOverTime: Array<{
-    date: string;
-    leads: number;
-    tours: number;
-  }>;
-}
-
-const AnalyticsPage = () => {
-  const [dateRange, setDateRange] = useState<[string, string]>(['', '']);
-  const [tourFilter, setTourFilter] = useState<string>('all');
-
-  const { data: analytics, isLoading } = useQuery<AnalyticsData>({
-    queryKey: ['analytics', dateRange, tourFilter],
-    queryFn: () => fetchApi('/api/analytics'),
-  });
-
-  // Mock data for development
-  const mockData: AnalyticsData = {
-    totalLeads: 124,
-    totalTours: 8,
-    conversionRate: 0.42,
-    avgSessionDuration: '3:24',
-    leadsBySource: [
-      { name: 'Tours Virtuales', value: 65 },
-      { name: 'Redes Sociales', value: 25 },
-      { name: 'Sitio Web', value: 15 },
-      { name: 'Referidos', value: 10 },
-    ],
-    leadsByTour: [
-      { name: 'Casa en la Costa', leads: 45 },
-      { name: 'Departamento Centro', leads: 32 },
-      { name: 'Casa con Piscina', leads: 28 },
-      { name: 'Loft Moderno', leads: 19 },
-    ],
-    leadsOverTime: [
-      { date: 'Ene', leads: 10, tours: 5 },
-      { date: 'Feb', leads: 15, tours: 7 },
-      { date: 'Mar', leads: 22, tours: 10 },
-      { date: 'Abr', leads: 18, tours: 8 },
-      { date: 'May', leads: 25, tours: 12 },
-      { date: 'Jun', leads: 34, tours: 15 },
-    ],
+  const loadAnalyticsData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const startDate = dateRange[0].toISOString();
+      const endDate = dateRange[1].toISOString();
+      
+      const data = await analyticsService.getAnalyticsStats(startDate, endDate);
+      setAnalyticsData(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error loading analytics data');
+      console.error('Analytics error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const data = analytics || mockData;
+  useEffect(() => {
+    loadAnalyticsData();
+  }, [dateRange]);
+
+  const handleDateRangeChange = (dates: any) => {
+    if (dates && dates.length === 2) {
+      setDateRange([dates[0], dates[1]]);
+    }
+  };
+
+  const handleExport = () => {
+    if (!analyticsData) return;
+    
+    const exportData = {
+      date_range: analyticsData.date_range,
+      summary: {
+        total_leads: analyticsData.total_leads,
+        active_tours: analyticsData.active_tours,
+        total_tours: analyticsData.total_tours,
+        conversion_rate: analyticsData.conversion_rate
+      },
+      leads_by_month: analyticsData.leads_by_month,
+      top_tours: analyticsData.top_tours
+    };
+    
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `vocaria-analytics-${dayjs().format('YYYY-MM-DD')}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert
+        message="Error"
+        description={error}
+        type="error"
+        showIcon
+        className="mb-4"
+        action={
+          <Button size="small" onClick={loadAnalyticsData}>
+            Retry
+          </Button>
+        }
+      />
+    );
+  }
+
+  if (!analyticsData) {
+    return (
+      <Empty
+        description="No analytics data available"
+        image={Empty.PRESENTED_IMAGE_SIMPLE}
+      />
+    );
+  }
+
+  // Prepare chart data
+  const chartData = analyticsData.leads_by_month.length > 0 
+    ? analyticsData.leads_by_month 
+    : [
+        { month: 'No data', leads: 0, tours: 0 }
+      ];
+
+  // Lead sources (simulated for now)
+  const leadSources = analyticsService.generateLeadSources();
+
+  const statCards = [
+    {
+      title: 'Total de Leads',
+      value: analyticsData.total_leads,
+      icon: <Users className="text-green-500" size={24} />,
+      color: 'bg-green-50',
+      change: analyticsData.total_leads > 0 ? '+12%' : '0%'
+    },
+    {
+      title: 'Tours Activos',
+      value: analyticsData.active_tours,
+      icon: <Home className="text-blue-500" size={24} />,
+      color: 'bg-blue-50',
+      change: analyticsData.active_tours > 0 ? 'Active' : 'None'
+    },
+    {
+      title: 'Tasa de Conversión',
+      value: `${analyticsData.conversion_rate}%`,
+      icon: <TrendingUp className="text-purple-500" size={24} />,
+      color: 'bg-purple-50',
+      change: analyticsData.conversion_rate > 0 ? 'Good' : 'Low'
+    },
+    {
+      title: 'Interacción Promedio',
+      value: analyticsService.calculateAverageInteractionTime(),
+      icon: <Clock className="text-amber-500" size={24} />,
+      color: 'bg-amber-50',
+      change: 'Avg'
+    },
+  ];
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl font-semibold text-gray-800">Analíticas</h1>
-        <Space>
-          <RangePicker 
-            placeholder={['Fecha inicio', 'Fecha fin']} 
-            onChange={(dates) => {
-              if (dates && dates[0] && dates[1]) {
-                setDateRange([dates[0].format('YYYY-MM-DD'), dates[1].format('YYYY-MM-DD')]);
-              } else {
-                setDateRange(['', '']);
-              }
-            }}
-            className="w-full sm:w-auto"
+        <div className="flex items-center gap-4">
+          <RangePicker
+            value={dateRange}
+            onChange={handleDateRangeChange}
+            format="YYYY-MM-DD"
           />
           <Select
-            placeholder="Filtrar por tour"
+            value={selectedTours}
             style={{ width: 200 }}
-            value={tourFilter}
-            onChange={(value: string) => setTourFilter(value)}
+            onChange={setSelectedTours}
           >
             <Option value="all">Todos los tours</Option>
-            <Option value="casa-costa">Casa en la Costa</Option>
-            <Option value="depto-centro">Departamento Centro</Option>
+            {analyticsData.top_tours.map((tour, index) => (
+              <Option key={index} value={tour.tour_name}>
+                {tour.tour_name}
+              </Option>
+            ))}
           </Select>
-          <Button icon={<Download size={16} />}>
+          <Button 
+            icon={<Download size={16} />}
+            onClick={handleExport}
+          >
             Exportar
           </Button>
-        </Space>
+        </div>
       </div>
 
-      {/* Summary Cards */}
-      <Row gutter={[16, 16]} className="mb-6">
-        <Col xs={24} sm={12} lg={6}>
-          <Card className="h-full">
-            <Statistic
-              title="Total de Leads"
-              value={data.totalLeads}
-              valueStyle={{ color: '#3f8600' }}
-              loading={isLoading}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card className="h-full">
-            <Statistic
-              title="Tours Activos"
-              value={data.totalTours}
-              valueStyle={{ color: '#3f8600' }}
-              loading={isLoading}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card className="h-full">
-            <Statistic
-              title="Tasa de Conversión"
-              value={data.conversionRate * 100}
-              precision={1}
-              suffix="%"
-              valueStyle={{ color: '#722ed1' }}
-              loading={isLoading}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card className="h-full">
-            <Statistic
-              title="Interacción Promedio"
-              value={data.avgSessionDuration}
-              loading={isLoading}
-            />
-          </Card>
-        </Col>
+      {/* Stats Grid */}
+      <Row gutter={[16, 16]}>
+        {statCards.map((stat, index) => (
+          <Col xs={24} sm={12} lg={6} key={index}>
+            <Card className="h-full shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-gray-500">
+                    {stat.title}
+                  </div>
+                  <div className="mt-1 text-2xl font-semibold">
+                    {stat.value}
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    {stat.change}
+                  </div>
+                </div>
+                <div className={`p-3 rounded-full ${stat.color}`}>
+                  {stat.icon}
+                </div>
+              </div>
+            </Card>
+          </Col>
+        ))}
       </Row>
 
-      {/* Charts Row 1 */}
-      <Row gutter={[16, 16]} className="mb-6">
+      <Row gutter={[16, 16]} className="mt-6">
+        {/* Leads Chart */}
         <Col xs={24} lg={16}>
           <Card title="Leads por Período" className="h-full">
-            <div style={{ height: 350 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.leadsOverTime}>
+            {chartData[0].month === 'No data' ? (
+              <Empty 
+                description="No hay datos de leads para mostrar"
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              />
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
+                  <XAxis dataKey="month" />
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="leads" name="Leads" fill="#3b82f6" />
-                  <Bar dataKey="tours" name="Tours" fill="#10b981" />
+                  <Bar dataKey="leads" fill="#3B82F6" name="Leads" />
+                  <Bar dataKey="tours" fill="#10B981" name="Tours" />
                 </BarChart>
               </ResponsiveContainer>
-            </div>
+            )}
           </Card>
         </Col>
+
+        {/* Lead Sources */}
         <Col xs={24} lg={8}>
           <Card title="Fuente de Leads" className="h-full">
-            <div style={{ height: 350 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={data.leadsBySource}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, percent }) => 
-                      `${name}: ${(percent * 100).toFixed(0)}%`
-                    }
-                  >
-                    {data.leadsBySource.map((_: { name: string; value: number }, index: number) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={COLORS[index % COLORS.length]} 
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => [`${value} leads`, 'Cantidad']} />
-                </PieChart>
-              </ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={leadSources}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ percentage }) => `${percentage}%`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="percentage"
+                >
+                  {leadSources.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="mt-4 space-y-2">
+              {leadSources.map((source, index) => (
+                <div key={index} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center">
+                    <div 
+                      className="w-3 h-3 rounded-full mr-2"
+                      style={{ backgroundColor: source.color }}
+                    />
+                    <span>{source.source}</span>
+                  </div>
+                  <span className="font-medium">{source.percentage}%</span>
+                </div>
+              ))}
             </div>
           </Card>
         </Col>
       </Row>
 
-      {/* Charts Row 2 */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24}>
-          <Card title="Rendimiento por Tour">
-            <div style={{ height: 400 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={data.leadsByTour}
-                  layout="vertical"
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" />
-                  <YAxis dataKey="name" type="category" width={150} />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="leads" name="Leads Generados" fill="#8884d8" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-        </Col>
-      </Row>
+      {/* Top Tours Performance */}
+      <Card title="Rendimiento por Tour">
+        {analyticsData.top_tours.length > 0 ? (
+          <div className="space-y-4">
+            {analyticsData.top_tours.map((tour, index) => (
+              <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center">
+                  <div className="bg-blue-100 p-2 rounded-lg mr-3">
+                    <Home className="text-blue-600" size={20} />
+                  </div>
+                  <div>
+                    <div className="font-medium">{tour.tour_name}</div>
+                    <div className="text-sm text-gray-500">
+                      {tour.leads_count} lead{tour.leads_count !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {tour.leads_count}
+                  </div>
+                  <div className="text-xs text-gray-500">leads</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Empty 
+            description="No hay datos de tours para mostrar"
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+          />
+        )}
+      </Card>
     </div>
   );
 };

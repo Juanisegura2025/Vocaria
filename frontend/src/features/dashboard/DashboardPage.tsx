@@ -1,9 +1,10 @@
-import { Card, Col, Row, Spin, Alert, message } from 'antd';
-import { Home, Users, MessageSquare, TrendingUp, PlusCircle, UserPlus, BarChart2 } from 'lucide-react';
+import { Card, Col, Row, Spin, Alert, message, Modal, Select } from 'antd';
+import { Home, Users, MessageSquare, TrendingUp, PlusCircle, UserPlus, BarChart2, Code } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toursService } from '../../services/toursService';
 import type { Tour } from '../../services/toursService';
+import EmbedCodeModal from '../../components/modals/EmbedCodeModal';
 
 const DashboardPage = () => {
   const navigate = useNavigate();
@@ -11,6 +12,8 @@ const DashboardPage = () => {
   const [toursData, setToursData] = useState<Tour[]>([]);
   const [totalLeads, setTotalLeads] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [embedModalVisible, setEmbedModalVisible] = useState(false);
+  const [selectedTourForEmbed, setSelectedTourForEmbed] = useState<Tour | null>(null);
 
   useEffect(() => {
     const loadDashboardData = async () => {
@@ -59,10 +62,54 @@ const DashboardPage = () => {
   };
 
   const handleViewReport = () => {
-    navigate('/analytics');
-    setTimeout(() => {
-      message.success('Mostrando reporte de analíticas');
-    }, 500);
+    message.info('Reporte mensual en desarrollo');
+  };
+
+  const handleGetEmbedCode = () => {
+    if (toursData.length === 0) {
+      message.warning('Necesitas crear al menos un tour primero');
+      return;
+    }
+
+    if (toursData.length === 1) {
+      setSelectedTourForEmbed(toursData[0]);
+      setEmbedModalVisible(true);
+    } else {
+      const tourOptions = toursData.map(tour => ({
+        label: tour.name,
+        value: tour.id,
+        tour: tour
+      }));
+
+      Modal.confirm({
+        title: 'Seleccionar Tour',
+        content: (
+          <div className="my-4">
+            <p className="mb-3">¿Para qué tour quieres generar el código embed?</p>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="Selecciona un tour"
+              options={tourOptions}
+              onChange={(value) => {
+                const selectedTour = toursData.find(t => t.id === value);
+                if (selectedTour) {
+                  setSelectedTourForEmbed(selectedTour);
+                }
+              }}
+            />
+          </div>
+        ),
+        onOk: () => {
+          if (selectedTourForEmbed) {
+            setEmbedModalVisible(true);
+          } else {
+            message.warning('Por favor selecciona un tour');
+          }
+        },
+        okText: 'Obtener Código',
+        cancelText: 'Cancelar'
+      });
+    }
   };
 
   const statCards = [
@@ -113,8 +160,9 @@ const DashboardPage = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-gray-800">Panel de Control</h1>
+    <>
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold text-gray-800">Panel de Control</h1>
       
       {/* Stats Grid */}
       <Row gutter={[16, 16]}>
@@ -213,6 +261,14 @@ const DashboardPage = () => {
                 <span>Agregar Lead Manual</span>
               </button>
               <button 
+                onClick={handleGetEmbedCode}
+                className="w-full flex items-center p-3 text-left rounded-lg border border-dashed border-gray-300 hover:border-green-500 hover:bg-green-50 transition-colors cursor-pointer"
+              >
+                <Code className="text-green-500 mr-2" size={20} />
+                <span>Obtener Código Embed</span>
+              </button>
+              
+              <button 
                 onClick={handleViewReport}
                 className="w-full flex items-center p-3 text-left rounded-lg border border-dashed border-gray-300 hover:border-purple-500 hover:bg-purple-50 transition-colors cursor-pointer"
               >
@@ -223,7 +279,19 @@ const DashboardPage = () => {
           </Card>
         </Col>
       </Row>
-    </div>
+      </div>
+
+      <EmbedCodeModal
+        visible={embedModalVisible}
+        onClose={() => {
+          setEmbedModalVisible(false);
+          setSelectedTourForEmbed(null);
+        }}
+        tourId={selectedTourForEmbed?.id || 0}
+        tourName={selectedTourForEmbed?.name || ''}
+        agentId="agent_01jwsmw7pcfp6r4hcebmbbnd43"
+      />
+    </>
   );
 };
 

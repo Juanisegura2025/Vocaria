@@ -795,6 +795,372 @@ async def get_tour_context(tour_id: str, db: AsyncSession = Depends(get_db)):
         "data_source": "none"
     }
 
+# ========================================
+# ANALYTICS ENDPOINTS
+# ========================================
+
+@app.get("/api/analytics/stats")
+async def get_analytics_stats(
+    start_date: str = None,
+    end_date: str = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get analytics statistics for the current user"""
+    try:
+        # Parse dates or use defaults
+        if start_date:
+            start = datetime.fromisoformat(start_date)
+        else:
+            start = datetime.now() - timedelta(days=30)
+        
+        if end_date:
+            end = datetime.fromisoformat(end_date)
+        else:
+            end = datetime.now()
+        
+        # Get user's tours
+        tours_query = select(Tour).where(Tour.owner_id == current_user.id)
+        tours_result = await db.execute(tours_query)
+        user_tours = tours_result.scalars().all()
+        tour_ids = [tour.id for tour in user_tours]
+        
+        if not tour_ids:
+            return {
+                "total_leads": 0,
+                "active_tours": 0,
+                "total_tours": 0,
+                "conversion_rate": 0.0,
+                "leads_by_month": [],
+                "top_tours": [],
+                "recent_activity": []
+            }
+        
+        # Total leads
+        leads_query = select(func.count(Lead.id)).where(
+            Lead.tour_id.in_(tour_ids),
+            Lead.created_at >= start,
+            Lead.created_at <= end
+        )
+        total_leads_result = await db.execute(leads_query)
+        total_leads = total_leads_result.scalar() or 0
+        
+        # Active tours
+        active_tours = len([tour for tour in user_tours if tour.is_active])
+        
+        # Leads by month
+        leads_by_month_query = select(
+            extract('month', Lead.created_at).label('month'),
+            extract('year', Lead.created_at).label('year'),
+            func.count(Lead.id).label('count')
+        ).where(
+            Lead.tour_id.in_(tour_ids),
+            Lead.created_at >= start,
+            Lead.created_at <= end
+        ).group_by(
+            extract('month', Lead.created_at),
+            extract('year', Lead.created_at)
+        ).order_by(
+            extract('year', Lead.created_at),
+            extract('month', Lead.created_at)
+        )
+        
+        leads_by_month_result = await db.execute(leads_by_month_query)
+        leads_by_month_data = leads_by_month_result.all()
+        
+        # Format leads by month
+        leads_by_month = []
+        month_names = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 
+                      'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dec']
+        
+        for row in leads_by_month_data:
+            month_name = month_names[int(row.month) - 1] if row.month else 'Unknown'
+            leads_by_month.append({
+                "month": month_name,
+                "leads": int(row.count),
+                "tours": active_tours
+            })
+        
+        # Top performing tours
+        top_tours_query = select(
+            Tour.id,
+            Tour.name,
+            func.count(Lead.id).label('leads_count')
+        ).join(
+            Lead, Tour.id == Lead.tour_id, isouter=True
+        ).where(
+            Tour.owner_id == current_user.id
+        ).group_by(
+            Tour.id, Tour.name
+        ).order_by(
+            func.count(Lead.id).desc()
+        ).limit(5)
+        
+        top_tours_result = await db.execute(top_tours_query)
+        top_tours_data = top_tours_result.all()
+        
+        top_tours = [
+            {
+                "tour_name": row.name,
+                "leads_count": int(row.leads_count) if row.leads_count else 0
+            }
+            for row in top_tours_data
+        ]
+        
+        # Calculate conversion rate
+        conversion_rate = (total_leads / len(user_tours)) * 100 if user_tours else 0.0
+        
+        # Recent activity
+        recent_leads_query = select(Lead, Tour.name.label('tour_name')).join(
+            Tour, Lead.tour_id == Tour.id
+        ).where(
+            Lead.tour_id.in_(tour_ids)
+        ).order_by(
+            Lead.created_at.desc()
+        ).limit(10)
+        
+        recent_leads_result = await db.execute(recent_leads_query)
+        recent_leads_data = recent_leads_result.all()
+        
+        recent_activity = [
+            {
+                "type": "lead_captured",
+                "description": f"New lead from {row.tour_name}",
+                "email": row.Lead.email,
+                "created_at": row.Lead.created_at.isoformat(),
+                "tour_name": row.tour_name
+            }
+            for row in recent_leads_data
+        ]
+        
+        return {
+            "total_leads": total_leads,
+            "active_tours": active_tours,
+            "total_tours": len(user_tours),
+            "conversion_rate": round(conversion_rate, 1),
+            "leads_by_month": leads_by_month,
+            "top_tours": top_tours,
+            "recent_activity": recent_activity,
+            "date_range": {
+                "start": start.isoformat(),
+                "end": end.isoformat()
+            }
+        }
+        
+    except Exception as e:
+        print(f"Analytics error: {e}")
+        raise HTTPException(500, f"Error calculating analytics: {str(e)}")
+
+# ========================================
+# CONVERSATION ENDPOINTS
+# ========================================
+
+@app.post("/api/conversations/start")
+async def start_conversation(
+    tour_id: str,
+    visitor_id: str = None,
+    room_context: dict = None,
+    user_agent: str = None,
+    ip_address: str = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Start a new conversation"""
+    try:
+        from uuid import UUID
+        from src.vocaria.db.models import Conversation
+        
+        # Validate tour_id is a valid UUID
+        try:
+            UUID(tour_id)
+        except ValueError:
+            raise HTTPException(400, "Invalid tour_id format")
+        
+        result = await db.execute(select(Tour).where(Tour.id == tour_id))
+        tour = result.scalar_one_or_none()
+        if not tour:
+            raise HTTPException(404, "Tour not found")
+        
+        conversation = Conversation(
+            tour_id=tour_id,
+            visitor_id=visitor_id or f"visitor_{int(time.time())}",
+            room_context=room_context,
+            user_agent=user_agent,
+            ip_address=ip_address,
+            started_at=datetime.utcnow()
+        )
+        
+        db.add(conversation)
+        await db.commit()
+        await db.refresh(conversation)
+        
+        return {
+            "conversation_id": str(conversation.id),
+            "visitor_id": conversation.visitor_id,
+            "started_at": conversation.started_at.isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(500, f"Error starting conversation: {str(e)}")
+
+@app.post("/api/conversations/{conversation_id}/messages")
+async def add_conversation_message(
+    conversation_id: str,
+    content: str,
+    is_user: bool,
+    message_type: str = "text",
+    room_context: dict = None,
+    audio_duration: float = None,
+    confidence_score: float = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Add a message to a conversation"""
+    try:
+        from uuid import UUID
+        from src.vocaria.db.models import Conversation, ConversationMessage
+        
+        # Validate conversation_id is a valid UUID
+        try:
+            UUID(conversation_id)
+        except ValueError:
+            raise HTTPException(400, "Invalid conversation_id format")
+        
+        result = await db.execute(select(Conversation).where(Conversation.id == conversation_id))
+        conversation = result.scalar_one_or_none()
+        if not conversation:
+            raise HTTPException(404, "Conversation not found")
+        
+        message = ConversationMessage(
+            conversation_id=conversation_id,
+            content=content,
+            is_user=is_user,
+            message_type=message_type,
+            room_context=room_context,
+            audio_duration=audio_duration,
+            confidence_score=confidence_score,
+            timestamp=datetime.utcnow()
+        )
+        
+        db.add(message)
+        conversation.message_count += 1
+        
+        # If this is a user message with contact info, update the conversation
+        if is_user and not conversation.lead_captured:
+            if "@" in content and "." in content:
+                conversation.visitor_email = content
+                conversation.lead_captured = True
+            elif any(char.isdigit() for char in content.replace(" ", "")) and len(content.replace(" ", "")) >= 8:
+                conversation.visitor_phone = content
+                conversation.lead_captured = True
+        
+        await db.commit()
+        await db.refresh(message)
+        
+        return {
+            "message_id": str(message.id),
+            "timestamp": message.timestamp.isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(500, f"Error adding message: {str(e)}")
+
+@app.get("/api/transcripts")
+async def get_transcripts(
+    tour_id: str = None,
+    start_date: str = None,
+    end_date: str = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get conversation transcripts for the current user"""
+    try:
+        from uuid import UUID
+        from sqlalchemy.orm import selectinload
+        from src.vocaria.db.models import Conversation, ConversationMessage
+        
+        # Validate tour_id if provided
+        if tour_id:
+            try:
+                UUID(tour_id)
+            except ValueError:
+                raise HTTPException(400, "Invalid tour_id format")
+        
+        query = select(Conversation).options(
+            selectinload(Conversation.messages),
+            selectinload(Conversation.tour),
+            selectinload(Conversation.lead)
+        ).join(Tour).where(Tour.owner_id == current_user.id)
+        
+        if tour_id:
+            query = query.where(Conversation.tour_id == tour_id)
+        
+        if start_date:
+            try:
+                start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                query = query.where(Conversation.started_at >= start_dt)
+            except ValueError:
+                raise HTTPException(400, "Invalid start_date format. Use ISO 8601 format")
+        
+        if end_date:
+            try:
+                end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+                # Add one day to include the entire end date
+                end_dt = end_dt + timedelta(days=1)
+                query = query.where(Conversation.started_at <= end_dt)
+            except ValueError:
+                raise HTTPException(400, "Invalid end_date format. Use ISO 8601 format")
+        
+        query = query.order_by(Conversation.started_at.desc())
+        
+        result = await db.execute(query)
+        conversations = result.scalars().all()
+        
+        transcripts = []
+        for conv in conversations:
+            transcript = {
+                "conversation_id": str(conv.id),
+                "tour_name": conv.tour.name,
+                "tour_id": str(conv.tour_id),
+                "visitor_id": conv.visitor_id,
+                "started_at": conv.started_at.isoformat() if conv.started_at else None,
+                "ended_at": conv.ended_at.isoformat() if conv.ended_at else None,
+                "duration_seconds": conv.duration_seconds,
+                "message_count": conv.message_count,
+                "lead_captured": conv.lead_captured,
+                "visitor_email": conv.visitor_email,
+                "visitor_phone": conv.visitor_phone,
+                "room_context": conv.room_context,
+                "messages": [
+                    {
+                        "id": str(msg.id),
+                        "content": msg.content,
+                        "is_user": msg.is_user,
+                        "message_type": msg.message_type,
+                        "timestamp": msg.timestamp.isoformat(),
+                        "room_context": msg.room_context,
+                        "audio_duration": msg.audio_duration,
+                        "confidence_score": msg.confidence_score
+                    }
+                    for msg in sorted(conv.messages, key=lambda m: m.timestamp)
+                ]
+            }
+            transcripts.append(transcript)
+        
+        return {
+            "transcripts": transcripts,
+            "total_count": len(transcripts)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Error fetching transcripts: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     print("🚀 Starting Vocaria API server...")

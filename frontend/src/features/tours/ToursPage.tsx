@@ -6,6 +6,7 @@ import type { Tour } from '../../services/toursService';
 import ViewTourModal from '../../components/modals/ViewTourModal';
 import CreateTourModal from '../../components/modals/CreateTourModal';
 import PropertyUploadModal from '../../components/modals/PropertyUploadModal';
+import EmbedCodeModal from '../../components/modals/EmbedCodeModal';
 
 const { Search: SearchInput } = Input;
 
@@ -89,10 +90,14 @@ const ToursPage = () => {
     setPropertyUploadModalVisible(true);
   };
 
-  // Handler for embed code (to be implemented)
+  // States for embed code modal
+  const [embedModalVisible, setEmbedModalVisible] = useState(false);
+  const [selectedTourForEmbed, setSelectedTourForEmbed] = useState<Tour | null>(null);
+
+  // Handler for embed code
   const handleGetEmbedCode = (tour: Tour) => {
-    message.info(`Embed code for tour "${tour.name}" coming soon!`);
-    // TODO: Open EmbedCodeModal
+    setSelectedTourForEmbed(tour);
+    setEmbedModalVisible(true);
   };
 
   // Safe filter function
@@ -361,6 +366,17 @@ const ToursPage = () => {
         }}
         tourId={selectedTourForUpload?.id}
         tourName={selectedTourForUpload?.name}
+      />
+
+      <EmbedCodeModal
+        visible={embedModalVisible}
+        onClose={() => {
+          setEmbedModalVisible(false);
+          setSelectedTourForEmbed(null);
+        }}
+        tourId={selectedTourForEmbed?.id || 0}
+        tourName={selectedTourForEmbed?.name || ''}
+        agentId="agent_01jwsmw7pcfp6r4hcebmbbnd43"
       />
     </div>
   );
