@@ -21,7 +21,7 @@ const RegisterPage = () => {
     terms: boolean;
   }) => {
     if (values.password !== values.confirmPassword) {
-      form.setFields([{ name: 'confirmPassword', errors: ['Las contraseñas no coinciden'] }]);
+      form.setFields([{ name: 'confirmPassword', errors: ['Passwords do not match'] }]);
       return;
     }
 
@@ -30,13 +30,13 @@ const RegisterPage = () => {
       // Use the login function from AuthContext as a temporary solution
       // until the register function is implemented
       await login(values.email, values.password);
-      setSuccess('¡Registro exitoso! Redirigiendo...');
+      setSuccess('Registration successful! Redirecting...');
       setTimeout(() => {
         navigate('/dashboard');
       }, 2000);
     } catch (error) {
       console.error('Registration error:', error);
-      setError('Error al registrar. Por favor, intenta de nuevo.');
+      setError('Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -46,14 +46,14 @@ const RegisterPage = () => {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-6 pt-12">
       <AuthCard
         icon={<Building2 className="text-white" />}
-        title="Crea tu cuenta"
-        subtitle="Comienza tu viaje con nosotros"
-        description="Regístrate para crear y gestionar tus tours virtuales"
+        title="Create your account"
+        subtitle="Start your journey with us"
+        description="Sign up to create and manage your virtual tours"
         className="w-full max-w-md"
       >
         {error && (
           <Alert
-            message="Error de registro"
+            message="Registration error"
             description={error}
             type="error"
             showIcon
@@ -65,7 +65,7 @@ const RegisterPage = () => {
         )}
         {success && (
           <Alert
-            message="¡Registro exitoso!"
+            message="Registration successful!"
             description={success}
             type="success"
             showIcon
@@ -85,12 +85,12 @@ const RegisterPage = () => {
           <Form.Item
             name="fullName"
             rules={[
-              { required: true, message: 'Por favor ingresa tu nombre completo' },
+              { required: true, message: 'Please enter your full name' },
             ]}
             className="mb-6"
           >
             <AuthInput
-              placeholder="Nombre completo"
+              placeholder="Full name"
               icon={<User className="text-gray-400" size={20} />}
             />
           </Form.Item>
@@ -98,13 +98,13 @@ const RegisterPage = () => {
           <Form.Item
             name="email"
             rules={[
-              { required: true, message: 'Por favor ingresa tu correo electrónico' },
-              { type: 'email', message: 'Ingresa un correo electrónico válido' },
+              { required: true, message: 'Please enter your email address' },
+              { type: 'email', message: 'Please enter a valid email address' },
             ]}
             className="mb-6"
           >
             <AuthInput
-              placeholder="Correo electrónico"
+              placeholder="Email address"
               icon={<Mail className="text-gray-400" size={20} />}
             />
           </Form.Item>
@@ -112,14 +112,14 @@ const RegisterPage = () => {
           <Form.Item
             name="password"
             rules={[
-              { required: true, message: 'Por favor ingresa tu contraseña' },
-              { min: 6, message: 'La contraseña debe tener al menos 6 caracteres' },
+              { required: true, message: 'Please enter your password' },
+              { min: 6, message: 'Password must be at least 6 characters' },
             ]}
             className="mb-1"
           >
             <AuthInput
               type="password"
-              placeholder="Contraseña"
+              placeholder="Password"
               icon={<Lock className="text-gray-400" size={20} />}
             />
           </Form.Item>
@@ -128,13 +128,13 @@ const RegisterPage = () => {
             name="confirmPassword"
             dependencies={['password']}
             rules={[
-              { required: true, message: 'Por favor confirma tu contraseña' },
+              { required: true, message: 'Please confirm your password' },
               ({ getFieldValue }) => ({
                 validator(_, value) {
                   if (!value || getFieldValue('password') === value) {
                     return Promise.resolve();
                   }
-                  return Promise.reject(new Error('Las contraseñas no coinciden'));
+                  return Promise.reject(new Error('Passwords do not match'));
                 },
               }),
             ]}
@@ -142,7 +142,7 @@ const RegisterPage = () => {
           >
             <AuthInput
               type="password"
-              placeholder="Confirmar contraseña"
+              placeholder="Confirm password"
               icon={<Lock className="text-gray-400" size={20} />}
             />
           </Form.Item>
@@ -153,16 +153,16 @@ const RegisterPage = () => {
             rules={[
               {
                 validator: (_, value) =>
-                  value ? Promise.resolve() : Promise.reject(new Error('Debes aceptar los términos y condiciones')),
+                  value ? Promise.resolve() : Promise.reject(new Error('You must accept the terms and conditions')),
               },
             ]}
             className="mb-6"
           >
             <Checkbox className="text-sm text-gray-600">
-              Acepto los{' '}
-              <a href="/terms" className="text-blue-600 hover:underline">términos y condiciones</a>{' '}
-              y{' '}
-              <a href="/privacy" className="text-blue-600 hover:underline">política de privacidad</a>
+              I accept the{' '}
+              <a href="/terms" className="text-blue-600 hover:underline">terms and conditions</a>{' '}
+              and{' '}
+              <a href="/privacy" className="text-blue-600 hover:underline">privacy policy</a>
             </Checkbox>
           </Form.Item>
 
@@ -173,15 +173,15 @@ const RegisterPage = () => {
               loading={loading}
               className="w-full h-12 text-base font-medium"
             >
-              Crear cuenta <UserPlus size={18} className="ml-2" />
+              Create account <UserPlus size={18} className="ml-2" />
             </AuthButton>
           </Form.Item>
         </Form>
 
         <div className="text-center text-sm text-gray-600 mt-8">
-          ¿Ya tienes una cuenta?{' '}
+          Already have an account?{' '}
           <Link to="/login" className="text-primary font-medium hover:underline">
-            Iniciar sesión
+            Sign in
           </Link>
         </div>
         

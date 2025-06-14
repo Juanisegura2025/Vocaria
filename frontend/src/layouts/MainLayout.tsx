@@ -33,19 +33,19 @@ const menuItems = [
   {
     key: 'transcripts',
     icon: <MessageSquare className="h-5 w-5" />,
-    label: 'Transcripciones',
+    label: 'Transcripts',
     path: '/transcripts',
   },
   {
     key: 'analytics',
     icon: <BarChart2 className="h-5 w-5" />,
-    label: 'Analíticas',
+    label: 'Analytics',
     path: '/analytics',
   },
   {
     key: 'settings',
     icon: <Settings className="h-5 w-5" />,
-    label: 'Configuración',
+    label: 'Settings',
     path: '/settings',
   },
 ];
@@ -87,4 +87,4 @@ export function MainLayout() {
       </Layout>
     </Layout>
   );
-}
+} 

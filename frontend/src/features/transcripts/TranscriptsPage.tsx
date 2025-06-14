@@ -330,7 +330,7 @@ const TranscriptsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-semibold text-gray-800">Transcripciones</h1>
+        <h1 className="text-2xl font-semibold text-gray-800">Transcripts</h1>
         <Button 
           icon={<Download size={16} />}
           onClick={() => {
@@ -351,7 +351,7 @@ const TranscriptsPage: React.FC = () => {
             URL.revokeObjectURL(url);
           }}
         >
-          Exportar
+          Export
         </Button>
       </div>
 
@@ -360,7 +360,7 @@ const TranscriptsPage: React.FC = () => {
           <Row gutter={[16, 16]} align="middle">
             <Col xs={24} md={8}>
               <SearchInput
-                placeholder="Buscar en conversaciones..."
+                placeholder="Search conversations..."
                 prefix={<Search size={16} className="text-gray-400" />}
                 onChange={(e) => setSearchText(e.target.value)}
                 allowClear
@@ -368,7 +368,7 @@ const TranscriptsPage: React.FC = () => {
             </Col>
             <Col xs={24} md={6}>
               <Select
-                placeholder="Todos los tours"
+                placeholder="All tours"
                 style={{ width: '100%' }}
                 allowClear
                 onChange={setSelectedTourId}
@@ -391,7 +391,7 @@ const TranscriptsPage: React.FC = () => {
             </Col>
             <Col xs={24} md={4} className="text-right">
               <Button onClick={loadTranscripts}>
-                Actualizar
+                Refresh
               </Button>
             </Col>
           </Row>
@@ -406,17 +406,17 @@ const TranscriptsPage: React.FC = () => {
             className="mb-4"
             action={
               <Button size="small" onClick={loadTranscripts}>
-                Reintentar
+                Retry
               </Button>
             }
           />
         ) : filteredTranscripts.length === 0 ? (
           <Empty
-            description="No hay conversaciones"
+            description="No conversations found"
             image={Empty.PRESENTED_IMAGE_SIMPLE}
           >
             <p className="text-gray-500 text-sm">
-              Las conversaciones de los visitantes aparecerán aquí cuando interactúen con tus tours.
+              Visitor conversations will appear here when they interact with your tours.
             </p>
           </Empty>
         ) : (
@@ -427,7 +427,7 @@ const TranscriptsPage: React.FC = () => {
             pagination={{
               pageSize: 10,
               showSizeChanger: true,
-              showTotal: (total) => `Total ${total} conversaciones`,
+              showTotal: (total) => `Total ${total} conversations`,
             }}
             scroll={{ x: 1000 }}
           />

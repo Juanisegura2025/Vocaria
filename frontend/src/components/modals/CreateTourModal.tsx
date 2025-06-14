@@ -104,7 +104,7 @@ const CreateTourModal: React.FC<CreateTourModalProps> = ({
     } catch (error) {
       console.error('Error creating tour:', error);
       setStep('form');
-      // El error se mostrará en la UI
+      // Error will be shown in UI
     } finally {
       setLoading(false);
     }
@@ -121,31 +121,31 @@ const CreateTourModal: React.FC<CreateTourModalProps> = ({
       case 'success':
         return {
           icon: <CheckCircle size={16} className="text-green-500" />,
-          text: 'Datos importados exitosamente',
+          text: 'Data imported successfully',
           type: 'success' as const
         };
       case 'partial':
         return {
           icon: <AlertTriangle size={16} className="text-yellow-500" />,
-          text: 'Importación parcial (algunos datos no disponibles)',
+          text: 'Partial import (some data unavailable)',
           type: 'warning' as const
         };
       case 'failed':
         return {
           icon: <AlertTriangle size={16} className="text-red-500" />,
-          text: 'Error en la importación - tour creado sin datos automáticos',
+          text: 'Import error - tour created without automatic data',
           type: 'error' as const
         };
       case 'not_configured':
         return {
           icon: <Info size={16} className="text-blue-500" />,
-          text: 'API de Matterport no configurada',
+          text: 'Matterport API not configured',
           type: 'info' as const
         };
       default:
         return {
           icon: <Info size={16} className="text-gray-500" />,
-          text: 'Estado de importación desconocido',
+          text: 'Unknown import status',
           type: 'info' as const
         };
     }
@@ -155,7 +155,7 @@ const CreateTourModal: React.FC<CreateTourModalProps> = ({
   if (step === 'creating') {
     return (
       <Modal
-        title="Creando Tour"
+        title="Creating Tour"
         open={visible}
         onCancel={handleClose}
         footer={null}
@@ -165,24 +165,24 @@ const CreateTourModal: React.FC<CreateTourModalProps> = ({
         <div className="text-center py-8">
           <Spin size="large" />
           <div className="mt-4 space-y-2">
-            <h3 className="text-lg font-medium">Creando tu tour...</h3>
-            <p className="text-gray-600">Conectando con Matterport para importar datos automáticamente</p>
+            <h3 className="text-lg font-medium">Creating your tour...</h3>
+            <p className="text-gray-600">Connecting to Matterport to import data automatically</p>
             <div className="flex justify-center space-x-4 mt-6">
               <div className="flex items-center text-blue-600">
                 <Home size={16} className="mr-2" />
-                <span>Información básica</span>
+                <span>Basic information</span>
               </div>
               <div className="flex items-center text-blue-600">
                 <MapPin size={16} className="mr-2" />
-                <span>Dirección</span>
+                <span>Address</span>
               </div>
               <div className="flex items-center text-blue-600">
                 <Ruler size={16} className="mr-2" />
-                <span>Dimensiones</span>
+                <span>Dimensions</span>
               </div>
               <div className="flex items-center text-blue-600">
                 <Building size={16} className="mr-2" />
-                <span>Habitaciones</span>
+                <span>Rooms</span>
               </div>
             </div>
           </div>
@@ -197,28 +197,28 @@ const CreateTourModal: React.FC<CreateTourModalProps> = ({
 
     return (
       <Modal
-        title="¡Tour Creado Exitosamente!"
+        title="Tour Created Successfully!"
         open={visible}
         onCancel={handleClose}
         width={800}
         footer={
           <div className="flex justify-between">
             <Button onClick={handleClose}>
-              Cerrar
+              Close
             </Button>
             <Space>
               <Button onClick={handleClose}>
-                Crear Otro Tour
+                Create Another Tour
               </Button>
               <Button type="primary" onClick={handleSuccess}>
-                Ver Mis Tours
+                View My Tours
               </Button>
             </Space>
           </div>
         }
       >
         <div className="space-y-6">
-          {/* Status de importación */}
+          {/* Import status */}
           <Alert
             icon={statusInfo.icon}
             message={statusInfo.text}
@@ -226,54 +226,54 @@ const CreateTourModal: React.FC<CreateTourModalProps> = ({
             showIcon
           />
 
-          {/* Información del tour creado */}
-          <Card title="Información del Tour">
+          {/* Created tour information */}
+          <Card title="Tour Information">
             <Descriptions column={2}>
-              <Descriptions.Item label="Nombre">
+              <Descriptions.Item label="Name">
                 {createdTour.name}
               </Descriptions.Item>
-              <Descriptions.Item label="Modelo ID">
+              <Descriptions.Item label="Model ID">
                 <code className="bg-gray-100 px-2 py-1 rounded text-xs">
                   {createdTour.matterport_model_id}
                 </code>
               </Descriptions.Item>
-              <Descriptions.Item label="Estado">
-                <Tag color="green">Activo</Tag>
+              <Descriptions.Item label="Status">
+                <Tag color="green">Active</Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="Datos Importados">
+              <Descriptions.Item label="Data Imported">
                 <Tag color={createdTour.matterport_data_imported ? "green" : "orange"}>
-                  {createdTour.matterport_data_imported ? "Sí" : "No"}
+                  {createdTour.matterport_data_imported ? "Yes" : "No"}
                 </Tag>
               </Descriptions.Item>
             </Descriptions>
           </Card>
 
-          {/* Preview de datos importados */}
+          {/* Imported data preview */}
           {importPreview && (
             <Card 
               title={
                 <div className="flex items-center">
                   <Globe size={16} className="mr-2 text-blue-500" />
-                  Datos Importados de Matterport
+                  Data Imported from Matterport
                 </div>
               }
             >
               <div className="space-y-4">
-                {/* Información básica */}
+                {/* Basic information */}
                 {(importPreview.matterport_name || importPreview.matterport_description) && (
                   <div>
                     <h4 className="font-medium mb-2 flex items-center">
                       <Home size={14} className="mr-2 text-green-500" />
-                      Información Básica
+                      Basic Information
                     </h4>
                     <Descriptions column={1}>
                       {importPreview.matterport_name && (
-                        <Descriptions.Item label="Nombre en Matterport">
+                        <Descriptions.Item label="Matterport Name">
                           {importPreview.matterport_name}
                         </Descriptions.Item>
                       )}
                       {importPreview.matterport_description && (
-                        <Descriptions.Item label="Descripción">
+                        <Descriptions.Item label="Description">
                           {importPreview.matterport_description}
                         </Descriptions.Item>
                       )}
@@ -281,21 +281,21 @@ const CreateTourModal: React.FC<CreateTourModalProps> = ({
                   </div>
                 )}
 
-                {/* Dirección */}
+                {/* Address */}
                 {(importPreview.address_line1 || importPreview.city) && (
                   <div>
                     <h4 className="font-medium mb-2 flex items-center">
                       <MapPin size={14} className="mr-2 text-blue-500" />
-                      Ubicación
+                      Location
                     </h4>
                     <Descriptions column={1}>
                       {importPreview.address_line1 && (
-                        <Descriptions.Item label="Dirección">
+                        <Descriptions.Item label="Address">
                           {importPreview.address_line1}
                         </Descriptions.Item>
                       )}
                       {importPreview.city && (
-                        <Descriptions.Item label="Ciudad">
+                        <Descriptions.Item label="City">
                           {importPreview.city}, {importPreview.state} {importPreview.country}
                         </Descriptions.Item>
                       )}
@@ -303,21 +303,21 @@ const CreateTourModal: React.FC<CreateTourModalProps> = ({
                   </div>
                 )}
 
-                {/* Dimensiones */}
+                {/* Dimensions */}
                 {(importPreview.total_area_floor || importPreview.total_area_floor_indoor) && (
                   <div>
                     <h4 className="font-medium mb-2 flex items-center">
                       <Ruler size={14} className="mr-2 text-purple-500" />
-                      Dimensiones
+                      Dimensions
                     </h4>
                     <Descriptions column={2}>
                       {importPreview.total_area_floor && (
-                        <Descriptions.Item label="Área Total">
+                        <Descriptions.Item label="Total Area">
                           {formatArea(importPreview.total_area_floor, importPreview.dimension_units)}
                         </Descriptions.Item>
                       )}
                       {importPreview.total_area_floor_indoor && (
-                        <Descriptions.Item label="Área Interior">
+                        <Descriptions.Item label="Indoor Area">
                           {formatArea(importPreview.total_area_floor_indoor, importPreview.dimension_units)}
                         </Descriptions.Item>
                       )}
@@ -325,15 +325,15 @@ const CreateTourModal: React.FC<CreateTourModalProps> = ({
                   </div>
                 )}
 
-                {/* Habitaciones */}
+                {/* Rooms */}
                 {importPreview.rooms_count && importPreview.rooms_count > 0 && (
                   <div>
                     <h4 className="font-medium mb-2 flex items-center">
                       <Building size={14} className="mr-2 text-orange-500" />
-                      Habitaciones Detectadas
+                      Detected Rooms
                     </h4>
                     <div className="flex items-center space-x-4">
-                      <Tag color="blue">{importPreview.rooms_count} habitaciones</Tag>
+                      <Tag color="blue">{importPreview.rooms_count} rooms</Tag>
                       {importPreview.rooms_summary && (
                         <Tooltip title={importPreview.rooms_summary}>
                           <span className="text-sm text-gray-600 truncate max-w-xs">
@@ -348,20 +348,20 @@ const CreateTourModal: React.FC<CreateTourModalProps> = ({
             </Card>
           )}
 
-          {/* Próximos pasos */}
-          <Card title="Próximos Pasos">
+          {/* Next steps */}
+          <Card title="Next Steps">
             <div className="space-y-2 text-sm">
               <div className="flex items-center">
                 <CheckCircle size={14} className="mr-2 text-green-500" />
-                <span>Tu agente virtual Jorge ya tiene acceso a toda esta información</span>
+                <span>Your virtual agent Jorge now has access to all this information</span>
               </div>
               <div className="flex items-center">
                 <CheckCircle size={14} className="mr-2 text-green-500" />
-                <span>Puede responder preguntas sobre dimensiones y características</span>
+                <span>Can answer questions about dimensions and features</span>
               </div>
               <div className="flex items-center">
                 <CheckCircle size={14} className="mr-2 text-green-500" />
-                <span>Lista para capturar leads automáticamente</span>
+                <span>Ready to capture leads automatically</span>
               </div>
             </div>
           </Card>
@@ -373,15 +373,15 @@ const CreateTourModal: React.FC<CreateTourModalProps> = ({
   // Render: Form Step
   return (
     <Modal
-      title="Crear Nuevo Tour"
+      title="Create New Tour"
       open={visible}
       onCancel={handleClose}
       footer={null}
       width={600}
     >
       <Alert
-        message="Importación Automática"
-        description="Conectaremos automáticamente con Matterport para importar información de la propiedad, dimensiones y habitaciones."
+        message="Automatic Import"
+        description="We'll automatically connect to Matterport to import property information, dimensions, and rooms."
         type="info"
         showIcon
         className="mb-6"
@@ -394,48 +394,48 @@ const CreateTourModal: React.FC<CreateTourModalProps> = ({
         disabled={loading}
       >
         <Form.Item
-          label="Nombre del Tour"
+          label="Tour Name"
           name="name"
           rules={[
-            { required: true, message: 'Por favor ingresa un nombre para el tour' },
-            { min: 3, message: 'El nombre debe tener al menos 3 caracteres' },
-            { max: 100, message: 'El nombre no puede exceder 100 caracteres' }
+            { required: true, message: 'Please enter a tour name' },
+            { min: 3, message: 'Name must be at least 3 characters' },
+            { max: 100, message: 'Name cannot exceed 100 characters' }
           ]}
         >
           <Input 
-            placeholder="ej: Apartamento CABA - 2 Dormitorios"
+            placeholder="e.g: CABA Apartment - 2 Bedrooms"
             prefix={<Home size={16} className="text-gray-400" />}
           />
         </Form.Item>
 
         <Form.Item
-          label="ID del Modelo Matterport"
+          label="Matterport Model ID"
           name="matterport_model_id"
           rules={[
-            { required: true, message: 'Por favor ingresa el ID del modelo de Matterport' },
+            { required: true, message: 'Please enter the Matterport model ID' },
             { 
               pattern: /^[a-zA-Z0-9_-]+$/, 
-              message: 'El ID debe contener solo letras, números, guiones y guiones bajos' 
+              message: 'ID must contain only letters, numbers, hyphens and underscores' 
             }
           ]}
-          extra="Puedes encontrar este ID en la URL de tu tour de Matterport"
+          extra="You can find this ID in your Matterport tour URL"
         >
           <Input 
-            placeholder="ej: SxQL3iGyoDo"
+            placeholder="e.g: SxQL3iGyoDo"
             style={{ fontFamily: 'monospace' }}
           />
         </Form.Item>
 
         <Form.Item
-          label="Objetivo del Agente"
+          label="Agent Objective"
           name="agent_objective"
           rules={[
-            { max: 200, message: 'El objetivo no puede exceder 200 caracteres' }
+            { max: 200, message: 'Objective cannot exceed 200 characters' }
           ]}
-          extra="Define qué debe lograr tu agente virtual con los visitantes"
+          extra="Define what your virtual agent should achieve with visitors"
         >
           <Input.TextArea 
-            placeholder="Agendar una visita presencial con el agente inmobiliario"
+            placeholder="Schedule an in-person visit with the real estate agent"
             rows={3}
             defaultValue="Schedule a visit"
           />
@@ -445,7 +445,7 @@ const CreateTourModal: React.FC<CreateTourModalProps> = ({
 
         <div className="flex justify-end space-x-3">
           <Button onClick={handleClose} disabled={loading}>
-            Cancelar
+            Cancel
           </Button>
           <Button
             type="primary"
@@ -453,7 +453,7 @@ const CreateTourModal: React.FC<CreateTourModalProps> = ({
             loading={loading}
             className="flex items-center"
           >
-            {loading ? 'Creando...' : 'Crear Tour'}
+            {loading ? 'Creating...' : 'Create Tour'}
           </Button>
         </div>
       </Form>

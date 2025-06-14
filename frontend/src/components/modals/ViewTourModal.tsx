@@ -1,5 +1,5 @@
-import { Modal, Descriptions, Tag, Space, Button, Divider, Card } from 'antd';
-import { Home, Calendar, User, Settings, ExternalLink } from 'lucide-react';
+import { Modal, Descriptions, Tag, Space, Button, Card } from 'antd';
+import { Home, Calendar, Settings, ExternalLink } from 'lucide-react';
 import type { Tour } from '../../services/toursService';
 
 interface ViewTourModalProps {
@@ -14,7 +14,7 @@ const ViewTourModal: React.FC<ViewTourModalProps> = ({ visible, tour, onClose })
   const formatDate = (dateString: string) => {
     if (!dateString) return 'N/A';
     try {
-      return new Date(dateString).toLocaleDateString('es-AR', {
+      return new Date(dateString).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
@@ -22,13 +22,16 @@ const ViewTourModal: React.FC<ViewTourModalProps> = ({ visible, tour, onClose })
         minute: '2-digit'
       });
     } catch {
-      return 'Fecha inválida';
+      return 'Invalid date';
     }
   };
 
   const getMatterportUrl = (modelId: string) => {
     return `https://my.matterport.com/show/?m=${modelId}`;
   };
+
+  // ✅ FIXED: Handle undefined matterport_model_id safely
+  const hasMatterportModel = tour.matterport_model_id && tour.matterport_model_id.trim() !== '';
 
   return (
     <Modal
@@ -39,7 +42,7 @@ const ViewTourModal: React.FC<ViewTourModalProps> = ({ visible, tour, onClose })
           </div>
           <div>
             <div className="text-lg font-semibold">{tour.name}</div>
-            <div className="text-sm text-gray-500">Detalles del Tour</div>
+            <div className="text-sm text-gray-500">Tour Details</div>
           </div>
         </div>
       }
@@ -47,16 +50,16 @@ const ViewTourModal: React.FC<ViewTourModalProps> = ({ visible, tour, onClose })
       onCancel={onClose}
       footer={[
         <Button key="close" onClick={onClose}>
-          Cerrar
+          Close
         </Button>,
         <Button
           key="matterport"
           type="primary"
           icon={<ExternalLink size={16} />}
-          onClick={() => window.open(getMatterportUrl(tour.matterport_model_id), '_blank')}
-          disabled={!tour.matterport_model_id}
+          onClick={() => hasMatterportModel && window.open(getMatterportUrl(tour.matterport_model_id), '_blank')}
+          disabled={!hasMatterportModel}
         >
-          Ver en Matterport
+          View in Matterport
         </Button>
       ]}
       width={800}
@@ -64,32 +67,32 @@ const ViewTourModal: React.FC<ViewTourModalProps> = ({ visible, tour, onClose })
     >
       <div className="space-y-6">
         {/* Basic Information */}
-        <Card title="Información Básica" size="small">
+        <Card title="Basic Information" size="small">
           <Descriptions column={2} size="small">
             <Descriptions.Item label="ID" span={1}>
               <Tag color="blue">{tour.id}</Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="Estado" span={1}>
+            <Descriptions.Item label="Status" span={1}>
               <Tag color={tour.is_active ? 'green' : 'red'}>
-                {tour.is_active ? 'Activo' : 'Inactivo'}
+                {tour.is_active ? 'Active' : 'Inactive'}
               </Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="Nombre" span={2}>
+            <Descriptions.Item label="Name" span={2}>
               <strong>{tour.name}</strong>
             </Descriptions.Item>
-            <Descriptions.Item label="Modelo Matterport" span={2}>
+            <Descriptions.Item label="Matterport Model" span={2}>
               <Space>
                 <Tag color="blue" className="font-mono">
-                  {tour.matterport_model_id}
+                  {tour.matterport_model_id || 'Not assigned'}
                 </Tag>
-                {tour.matterport_model_id && (
+                {hasMatterportModel && (
                   <Button
                     type="link"
                     size="small"
                     icon={<ExternalLink size={14} />}
                     onClick={() => window.open(getMatterportUrl(tour.matterport_model_id), '_blank')}
                   >
-                    Abrir Tour
+                    Open Tour
                   </Button>
                 )}
               </Space>
@@ -98,30 +101,30 @@ const ViewTourModal: React.FC<ViewTourModalProps> = ({ visible, tour, onClose })
         </Card>
 
         {/* Agent Configuration */}
-        <Card title="Configuración del Agente" size="small">
+        <Card title="Agent Configuration" size="small">
           <Descriptions column={1} size="small">
-            <Descriptions.Item label="Objetivo del Agente">
-              {tour.agent_objective || 'No especificado'}
+            <Descriptions.Item label="Agent Objective">
+              {tour.agent_objective || 'Not specified'}
             </Descriptions.Item>
             <Descriptions.Item label="Agent ID">
-              <Tag color="purple">{tour.agent_id || 'No asignado'}</Tag>
+              <Tag color="purple">{tour.agent_id || 'Not assigned'}</Tag>
             </Descriptions.Item>
           </Descriptions>
         </Card>
 
         {/* Dates and Activity */}
-        <Card title="Fechas y Actividad" size="small">
+        <Card title="Dates and Activity" size="small">
           <Descriptions column={2} size="small">
-            <Descriptions.Item label="Fecha de Creación" span={1}>
+            <Descriptions.Item label="Created Date" span={1}>
               <Space>
                 <Calendar size={16} className="text-gray-500" />
                 {formatDate(tour.created_at)}
               </Space>
             </Descriptions.Item>
-            <Descriptions.Item label="Última Actualización" span={1}>
+            <Descriptions.Item label="Last Updated" span={1}>
               <Space>
                 <Settings size={16} className="text-gray-500" />
-                {formatDate(tour.updated_at)}
+                {formatDate(tour.updated_at || tour.created_at)}
               </Space>
             </Descriptions.Item>
           </Descriptions>
@@ -129,13 +132,13 @@ const ViewTourModal: React.FC<ViewTourModalProps> = ({ visible, tour, onClose })
 
         {/* Room Data (if available) */}
         {tour.room_data && Array.isArray(tour.room_data) && tour.room_data.length > 0 && (
-          <Card title="Datos de Habitaciones" size="small">
+          <Card title="Room Data" size="small">
             <div className="space-y-2">
               {tour.room_data.map((room: any, index: number) => (
                 <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                  <span className="font-medium">{room.name || `Habitación ${index + 1}`}</span>
+                  <span className="font-medium">{room.name || `Room ${index + 1}`}</span>
                   <span className="text-sm text-gray-500">
-                    {room.area_m2 ? `${room.area_m2} m²` : 'Área no especificada'}
+                    {room.area_m2 ? `${room.area_m2} m²` : 'Area not specified'}
                   </span>
                 </div>
               ))}
@@ -144,23 +147,23 @@ const ViewTourModal: React.FC<ViewTourModalProps> = ({ visible, tour, onClose })
         )}
 
         {/* Statistics */}
-        <Card title="Estadísticas" size="small">
+        <Card title="Statistics" size="small">
           <div className="grid grid-cols-3 gap-4 text-center">
             <div className="p-4 bg-blue-50 rounded-lg">
               <div className="text-2xl font-bold text-blue-600">{tour.leads_count || 0}</div>
-              <div className="text-sm text-gray-600">Leads Capturados</div>
+              <div className="text-sm text-gray-600">Leads Captured</div>
             </div>
             <div className="p-4 bg-green-50 rounded-lg">
               <div className="text-2xl font-bold text-green-600">
-                {tour.is_active ? 'Activo' : 'Inactivo'}
+                {tour.is_active ? 'Active' : 'Inactive'}
               </div>
-              <div className="text-sm text-gray-600">Estado Actual</div>
+              <div className="text-sm text-gray-600">Current Status</div>
             </div>
             <div className="p-4 bg-purple-50 rounded-lg">
               <div className="text-2xl font-bold text-purple-600">
-                {tour.agent_id ? 'Sí' : 'No'}
+                {tour.agent_id ? 'Yes' : 'No'}
               </div>
-              <div className="text-sm text-gray-600">Agente Asignado</div>
+              <div className="text-sm text-gray-600">Agent Assigned</div>
             </div>
           </div>
         </Card>

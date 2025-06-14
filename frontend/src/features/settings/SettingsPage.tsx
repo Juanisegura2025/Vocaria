@@ -25,9 +25,9 @@ const SettingsPage = () => {
     try {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
-      message.success('Configuración guardada exitosamente');
+      message.success('Settings saved successfully');
     } catch (error) {
-      message.error('Error al guardar la configuración');
+      message.error('Error saving settings');
     } finally {
       setLoading(false);
     }
@@ -36,14 +36,14 @@ const SettingsPage = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-gray-800">Configuración</h1>
+        <h1 className="text-2xl font-semibold text-gray-800">Settings</h1>
         <Button 
           type="primary" 
           icon={<Save size={16} />}
           loading={loading}
           onClick={() => form.submit()}
         >
-          Guardar Cambios
+          Save Changes
         </Button>
       </div>
 
@@ -57,7 +57,7 @@ const SettingsPage = () => {
             tab={
               <span>
                 <User size={16} className="mr-1" />
-                Perfil
+                Profile
               </span>
             }
             key="profile"
@@ -70,54 +70,54 @@ const SettingsPage = () => {
             >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Form.Item
-                  label="Nombre"
+                  label="First Name"
                   name="firstName"
-                  rules={[{ required: true, message: 'Por favor ingresa tu nombre' }]}
+                  rules={[{ required: true, message: 'Please enter your first name' }]}
                 >
-                  <Input placeholder="Juan" />
+                  <Input placeholder="John" />
                 </Form.Item>
                 <Form.Item
-                  label="Apellido"
+                  label="Last Name"
                   name="lastName"
-                  rules={[{ required: true, message: 'Por favor ingresa tu apellido' }]}
+                  rules={[{ required: true, message: 'Please enter your last name' }]}
                 >
-                  <Input placeholder="Pérez" />
+                  <Input placeholder="Doe" />
                 </Form.Item>
               </div>
               
               <Form.Item
-                label="Correo Electrónico"
+                label="Email Address"
                 name="email"
                 rules={[
-                  { required: true, message: 'Por favor ingresa tu correo' },
-                  { type: 'email', message: 'Correo electrónico no válido' },
+                  { required: true, message: 'Please enter your email' },
+                  { type: 'email', message: 'Invalid email address' },
                 ]}
               >
                 <Input 
                   prefix={<Mail size={16} className="text-gray-400" />} 
-                  placeholder="juan@ejemplo.com" 
+                  placeholder="john@example.com" 
                 />
               </Form.Item>
 
               <Form.Item
-                label="Teléfono"
+                label="Phone Number"
                 name="phone"
                 rules={[
-                  { pattern: /^[0-9+\-\s]+$/, message: 'Número de teléfono no válido' },
+                  { pattern: /^[0-9+\-\s]+$/, message: 'Invalid phone number' },
                 ]}
               >
-                <Input placeholder="+54 9 11 1234-5678" />
+                <Input placeholder="+1 (555) 123-4567" />
               </Form.Item>
 
               <Divider orientation="left" className="text-sm font-medium text-gray-500">
-                Cambiar Contraseña
+                Change Password
               </Divider>
 
               <Form.Item
                 name="currentPassword"
-                label="Contraseña Actual"
+                label="Current Password"
                 rules={[
-                  { min: 8, message: 'La contraseña debe tener al menos 8 caracteres' },
+                  { min: 8, message: 'Password must be at least 8 characters' },
                 ]}
               >
                 <Input.Password
@@ -129,16 +129,16 @@ const SettingsPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Form.Item
                   name="newPassword"
-                  label="Nueva Contraseña"
+                  label="New Password"
                   rules={[
-                    { min: 8, message: 'La contraseña debe tener al menos 8 caracteres' },
+                    { min: 8, message: 'Password must be at least 8 characters' },
                   ]}
                 >
                   <Input.Password placeholder="••••••••" />
                 </Form.Item>
                 <Form.Item
                   name="confirmPassword"
-                  label="Confirmar Contraseña"
+                  label="Confirm Password"
                   dependencies={['newPassword']}
                   rules={[
                     ({ getFieldValue }) => ({
@@ -146,7 +146,7 @@ const SettingsPage = () => {
                         if (!value || getFieldValue('newPassword') === value) {
                           return Promise.resolve();
                         }
-                        return Promise.reject(new Error('Las contraseñas no coinciden'));
+                        return Promise.reject(new Error('Passwords do not match'));
                       },
                     }),
                   ]}
@@ -161,7 +161,7 @@ const SettingsPage = () => {
             tab={
               <span>
                 <Bell size={16} className="mr-1" />
-                Notificaciones
+                Notifications
               </span>
             }
             key="notifications"
@@ -170,8 +170,8 @@ const SettingsPage = () => {
               <Card>
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-medium">Notificaciones por correo</h3>
-                    <p className="text-sm text-gray-500">Recibir notificaciones importantes por correo electrónico</p>
+                    <h3 className="font-medium">Email notifications</h3>
+                    <p className="text-sm text-gray-500">Receive important notifications via email</p>
                   </div>
                   <Form.Item name="emailNotifications" valuePropName="checked" noStyle>
                     <Switch defaultChecked />
@@ -182,8 +182,8 @@ const SettingsPage = () => {
               <Card>
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-medium">Recordatorios de tours</h3>
-                    <p className="text-sm text-gray-500">Recordatorios para tours programados</p>
+                    <h3 className="font-medium">Tour reminders</h3>
+                    <p className="text-sm text-gray-500">Reminders for scheduled tours</p>
                   </div>
                   <Form.Item name="tourReminders" valuePropName="checked" noStyle>
                     <Switch defaultChecked />
@@ -194,8 +194,8 @@ const SettingsPage = () => {
               <Card>
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-medium">Actualizaciones de leads</h3>
-                    <p className="text-sm text-gray-500">Notificaciones sobre actividad de leads</p>
+                    <h3 className="font-medium">Lead updates</h3>
+                    <p className="text-sm text-gray-500">Notifications about lead activity</p>
                   </div>
                   <Form.Item name="leadUpdates" valuePropName="checked" noStyle>
                     <Switch defaultChecked />
@@ -209,25 +209,25 @@ const SettingsPage = () => {
             tab={
               <span>
                 <Globe size={16} className="mr-1" />
-                Preferencias
+                Preferences
               </span>
             }
             key="preferences"
           >
             <div className="max-w-2xl space-y-6">
               <Card>
-                <h3 className="font-medium mb-4">Idioma</h3>
+                <h3 className="font-medium mb-4">Language</h3>
                 <Form.Item name="language" noStyle>
-                  <Select defaultValue="es" style={{ width: 200 }}>
-                    <Option value="es">Español</Option>
+                  <Select defaultValue="en" style={{ width: 200 }}>
                     <Option value="en">English</Option>
+                    <Option value="es">Español</Option>
                     <Option value="pt">Português</Option>
                   </Select>
                 </Form.Item>
               </Card>
 
               <Card>
-                <h3 className="font-medium mb-4">Zona Horaria</h3>
+                <h3 className="font-medium mb-4">Time Zone</h3>
                 <Form.Item name="timezone" noStyle>
                   <Select 
                     defaultValue="America/Argentina/Buenos_Aires" 
@@ -241,10 +241,13 @@ const SettingsPage = () => {
                     }}
                   >
                     <Option value="America/Argentina/Buenos_Aires">(GMT-03:00) Buenos Aires</Option>
-                    <Option value="America/Mexico_City">(GMT-06:00) Ciudad de México</Option>
+                    <Option value="America/Mexico_City">(GMT-06:00) Mexico City</Option>
                     <Option value="America/Bogota">(GMT-05:00) Bogotá</Option>
                     <Option value="America/Santiago">(GMT-04:00) Santiago</Option>
                     <Option value="America/Lima">(GMT-05:00) Lima</Option>
+                    <Option value="America/New_York">(GMT-05:00) New York</Option>
+                    <Option value="Europe/London">(GMT+00:00) London</Option>
+                    <Option value="Europe/Madrid">(GMT+01:00) Madrid</Option>
                   </Select>
                 </Form.Item>
               </Card>
@@ -255,7 +258,7 @@ const SettingsPage = () => {
             tab={
               <span>
                 <CreditCard size={16} className="mr-1" />
-                Suscripción
+                Subscription
               </span>
             }
             key="billing"
@@ -266,10 +269,10 @@ const SettingsPage = () => {
                   <CheckCircle className="text-green-600" size={24} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-medium">Plan Profesional</h3>
-                  <p className="text-gray-600">Tu suscripción está activa</p>
+                  <h3 className="text-lg font-medium">Professional Plan</h3>
+                  <p className="text-gray-600">Your subscription is active</p>
                   <div className="mt-2 text-sm text-gray-500">
-                    Próximo cargo: $99.00 USD - 15 de Junio 2023
+                    Next billing: $99.00 USD - June 15, 2025
                   </div>
                 </div>
               </div>
@@ -279,29 +282,29 @@ const SettingsPage = () => {
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h4 className="font-medium">Método de pago</h4>
-                    <p className="text-sm text-gray-500">Visa terminada en 4242</p>
+                    <h4 className="font-medium">Payment method</h4>
+                    <p className="text-sm text-gray-500">Visa ending in 4242</p>
                   </div>
-                  <Button type="link">Cambiar</Button>
+                  <Button type="link">Change</Button>
                 </div>
 
                 <div className="flex justify-between items-center">
                   <div>
-                    <h4 className="font-medium">Facturación</h4>
-                    <p className="text-sm text-gray-500">Facturas mensuales</p>
+                    <h4 className="font-medium">Billing</h4>
+                    <p className="text-sm text-gray-500">Monthly invoices</p>
                   </div>
-                  <Button type="link">Ver facturas</Button>
+                  <Button type="link">View invoices</Button>
                 </div>
 
                 <div className="p-4 bg-yellow-50 rounded-lg flex items-start">
                   <AlertCircle className="text-yellow-500 mr-2 mt-0.5 flex-shrink-0" />
                   <div>
-                    <h4 className="font-medium text-yellow-800">¿Quieres cambiar de plan?</h4>
+                    <h4 className="font-medium text-yellow-800">Want to change your plan?</h4>
                     <p className="text-sm text-yellow-700">
-                      Puedes actualizar o cambiar tu plan en cualquier momento.
+                      You can upgrade or change your plan at any time.
                     </p>
                     <Button type="primary" className="mt-2">
-                      Ver planes disponibles
+                      View available plans
                     </Button>
                   </div>
                 </div>

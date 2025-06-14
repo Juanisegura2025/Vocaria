@@ -19,13 +19,13 @@ const LoginPage = () => {
       setSuccess('');
       setLoading(true);
       await login(values.email, values.password);
-      setSuccess('Inicio de sesión exitoso. Redirigiendo...');
+      setSuccess('Login successful. Redirecting...');
       setTimeout(() => {
         navigate('/dashboard');
       }, 1500);
     } catch (err) {
       console.error('Login error:', err);
-      setError('No se pudo iniciar sesión. Verifica tus credenciales.');
+      setError('Unable to log in. Please check your credentials.');
     } finally {
       setLoading(false);
     }
@@ -35,8 +35,8 @@ const LoginPage = () => {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-6 pt-12">
       <AuthCard
         icon={<Home className="text-white" />}
-        title="Bienvenido de vuelta"
-        subtitle="Inicia sesión en tu cuenta"
+        title="Welcome back"
+        subtitle="Sign in to your account"
         className="w-full max-w-md"
       >
         {error && (
@@ -52,7 +52,7 @@ const LoginPage = () => {
         )}
         {success && (
           <Alert
-            message="¡Éxito!"
+            message="Success!"
             description={success}
             type="success"
             showIcon
@@ -70,13 +70,13 @@ const LoginPage = () => {
           <Form.Item
             name="email"
             rules={[
-              { required: true, message: 'Por favor ingresa tu correo electrónico' },
-              { type: 'email', message: 'Ingresa un correo electrónico válido' },
+              { required: true, message: 'Please enter your email address' },
+              { type: 'email', message: 'Please enter a valid email address' },
             ]}
             className="mb-6"
           >
             <AuthInput
-              placeholder="Correo electrónico"
+              placeholder="Email address"
               icon={<Mail className="text-gray-400" size={20} />}
             />
           </Form.Item>
@@ -84,23 +84,23 @@ const LoginPage = () => {
           <Form.Item
             name="password"
             rules={[
-              { required: true, message: 'Por favor ingresa tu contraseña' },
-              { min: 6, message: 'La contraseña debe tener al menos 6 caracteres' },
+              { required: true, message: 'Please enter your password' },
+              { min: 6, message: 'Password must be at least 6 characters' },
             ]}
             className="mb-1"
           >
             <AuthInputPassword
-              placeholder="Contraseña"
+              placeholder="Password"
               icon={<Lock className="text-gray-400" size={20} />}
             />
           </Form.Item>
 
           <div className="flex items-center justify-between mb-8">
             <Form.Item name="remember" valuePropName="checked" noStyle>
-              <Checkbox>Recordarme</Checkbox>
+              <Checkbox>Remember me</Checkbox>
             </Form.Item>
             <Link to="/forgot-password" className="text-primary hover:underline">
-              ¿Olvidaste tu contraseña?
+              Forgot your password?
             </Link>
           </div>
 
@@ -111,14 +111,14 @@ const LoginPage = () => {
               loading={loading}
               className="w-full h-12 text-base font-medium"
             >
-              Iniciar sesión <LogIn size={18} className="ml-2" />
+              Sign in <LogIn size={18} className="ml-2" />
             </AuthButton>
           </Form.Item>
 
           <div className="text-center text-sm text-gray-600 mb-8">
-            ¿No tienes una cuenta?{' '}
+            Don't have an account?{' '}
             <Link to="/register" className="text-primary font-medium hover:underline">
-              Crear cuenta nueva
+              Create new account
             </Link>
           </div>
 

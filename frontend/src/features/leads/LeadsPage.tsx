@@ -76,7 +76,7 @@ const LeadsPage = () => {
   const formatDate = (dateString: string) => {
     if (!dateString) return 'N/A';
     try {
-      return new Date(dateString).toLocaleDateString('es-AR', {
+      return new Date(dateString).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -84,7 +84,7 @@ const LeadsPage = () => {
         minute: '2-digit'
       });
     } catch {
-      return 'Fecha inválida';
+      return 'Invalid date';
     }
   };
 
@@ -102,14 +102,14 @@ const LeadsPage = () => {
             {email ? email.charAt(0).toUpperCase() : '?'}
           </Avatar>
           <div>
-            <div className="font-medium">{record.name || 'Lead sin nombre'}</div>
-            <div className="text-xs text-gray-500">{email || 'Sin email'}</div>
+            <div className="font-medium">{record.name || 'Unnamed Lead'}</div>
+            <div className="text-xs text-gray-500">{email || 'No email'}</div>
           </div>
         </div>
       ),
     },
     {
-      title: 'Contacto',
+      title: 'Contact',
       key: 'contact',
       render: (record: LeadWithTour) => (
         <div className="space-y-1">
@@ -137,13 +137,13 @@ const LeadsPage = () => {
         <div className="flex items-center text-sm">
           <Home size={14} className="mr-1 text-gray-500" />
           <span className="font-medium">
-            {record.tourName || 'Tour no identificado'}
+            {record.tourName || 'Unidentified Tour'}
           </span>
         </div>
       ),
     },
     {
-      title: 'Contexto',
+      title: 'Context',
       key: 'context',
       render: (record: LeadWithTour) => (
         <div className="text-sm text-gray-600">
@@ -157,30 +157,30 @@ const LeadsPage = () => {
       ),
     },
     {
-      title: 'Estado',
+      title: 'Status',
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => {
         const statusMap: Record<string, { color: string; text: string }> = {
-          new: { color: 'blue', text: 'Nuevo' },
-          contacted: { color: 'geekblue', text: 'Contactado' },
-          qualified: { color: 'green', text: 'Calificado' },
-          unqualified: { color: 'red', text: 'No calificado' },
+          new: { color: 'blue', text: 'New' },
+          contacted: { color: 'geekblue', text: 'Contacted' },
+          qualified: { color: 'green', text: 'Qualified' },
+          unqualified: { color: 'red', text: 'Unqualified' },
         };
-        const statusInfo = statusMap[status] || { color: 'default', text: 'Nuevo' };
+        const statusInfo = statusMap[status] || { color: 'default', text: 'New' };
         return <Tag color={statusInfo.color}>{statusInfo.text}</Tag>;
       },
       filters: [
-        { text: 'Nuevo', value: 'new' },
-        { text: 'Contactado', value: 'contacted' },
-        { text: 'Calificado', value: 'qualified' },
-        { text: 'No calificado', value: 'unqualified' },
+        { text: 'New', value: 'new' },
+        { text: 'Contacted', value: 'contacted' },
+        { text: 'Qualified', value: 'qualified' },
+        { text: 'Unqualified', value: 'unqualified' },
       ],
       filteredValue: statusFilter ? [statusFilter] : null,
       onFilter: (value: any, record: any) => record.status === value,
     },
     {
-      title: 'Fecha',
+      title: 'Date',
       dataIndex: 'created_at',
       key: 'date',
       render: (date: string) => (
@@ -193,7 +193,7 @@ const LeadsPage = () => {
         new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
     },
     {
-      title: 'Acciones',
+      title: 'Actions',
       key: 'actions',
       render: (record: LeadWithTour) => (
         <Space size="middle">
@@ -201,15 +201,15 @@ const LeadsPage = () => {
             type="link" 
             size="small"
             className="text-blue-500 p-0"
-            onClick={() => console.log('Ver detalles lead:', record.id)}
+            onClick={() => console.log('View lead details:', record.id)}
           >
-            Ver Detalles
+            View Details
           </Button>
           <Button 
             type="text" 
             size="small" 
             icon={<Mail size={16} />} 
-            title="Enviar Email"
+            title="Send Email"
             onClick={() => window.open(`mailto:${record.email}`, '_blank')}
           />
         </Space>
@@ -247,14 +247,14 @@ const LeadsPage = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-semibold text-gray-800">Gestión de Leads</h1>
+        <h1 className="text-2xl font-semibold text-gray-800">Lead Management</h1>
         <Space>
           <Button 
             icon={<Download size={16} />}
             className="flex items-center"
             onClick={() => console.log('Export functionality pending')}
           >
-            Exportar
+            Export
           </Button>
           <Button 
             type="primary" 
@@ -262,7 +262,7 @@ const LeadsPage = () => {
             className="flex items-center"
             onClick={() => console.log('Add lead functionality pending')}
           >
-            Agregar Lead
+            Add Lead
           </Button>
         </Space>
       </div>
@@ -272,7 +272,7 @@ const LeadsPage = () => {
           <Row gutter={[16, 16]} align="middle">
             <Col xs={24} md={12} lg={8}>
               <SearchInput
-                placeholder="Buscar leads..."
+                placeholder="Search leads..."
                 prefix={<Search size={16} className="text-gray-400" />}
                 onChange={handleSearch}
                 allowClear
@@ -285,10 +285,10 @@ const LeadsPage = () => {
                   icon={<Filter size={16} />}
                   onClick={() => console.log('Advanced filters pending')}
                 >
-                  Filtros
+                  Filters
                 </Button>
                 <Button onClick={() => setStatusFilter(null)}>
-                  Limpiar Filtros
+                  Clear Filters
                 </Button>
               </Space>
             </Col>
@@ -297,7 +297,7 @@ const LeadsPage = () => {
 
         {error ? (
           <div className="p-4 text-red-600">
-            Error al cargar los leads: {error}
+            Error loading leads: {error}
           </div>
         ) : (
           <Table
