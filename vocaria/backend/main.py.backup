@@ -3,7 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, insert, text
+from sqlalchemy import select, insert, text, func  # ✅ FIXED: Added func
+from sqlalchemy.sql import extract  # ✅ FIXED: Added extract
 from contextlib import asynccontextmanager
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List, Dict, Any
@@ -129,6 +130,26 @@ class PropertyData(BaseModel):
     rooms_count: int = 0
     rooms_summary: Optional[str] = None
 
+# NEW: Manual Property Upload Model
+class ManualPropertyUpload(BaseModel):
+    """Manual property data upload when Matterport import fails"""
+    property_name: str
+    description: Optional[str] = None
+    address_line1: str
+    city: str
+    state: Optional[str] = None
+    country: str = "Argentina"
+    total_area: float
+    bedrooms: int
+    bathrooms: float
+    price: Optional[float] = None
+    currency: Optional[str] = "USD"
+    property_type: str = "apartment"
+    amenities: Optional[str] = None
+    year_built: Optional[int] = None
+    parking_spaces: Optional[int] = 0
+    rooms_detail: Optional[str] = None
+
 class TourResponse(BaseModel):
     id: int
     name: str
@@ -199,7 +220,7 @@ async def root():
 async def health_check():
     try:
         db_url = os.getenv('DATABASE_URL')
-        matterport_configured = bool(os.getenv('MATTERPORT_API_KEY') and os.getenv('MATTERPORT_SECRET_KEY'))
+        matterport_configured = bool(os.getenv('MATTERPORT_TOKEN_ID') and os.getenv('MATTERPORT_TOKEN_SECRET'))
         
         return {
             "status": "✅ healthy",
@@ -495,38 +516,49 @@ async def create_tour(tour: TourCreate, db: AsyncSession = Depends(get_db), curr
 
 @app.get("/api/tours", response_model=List[TourResponse])
 async def get_user_tours(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Get all tours for the current user"""
+    """Get all tours for the current user - UPDATED TO INCLUDE PROPERTY DATA"""
     try:
         print(f"🔍 Getting tours for user: {current_user.id}")
         
-        # Query simple y robusto
+        # Get tours with their properties
         result = await db.execute(
-            select(Tour, Property)
-            .outerjoin(Property, Tour.id == Property.tour_id)
+            select(Tour)
             .where(Tour.owner_id == current_user.id)
             .order_by(Tour.created_at.desc())
         )
         
-        tours_data = result.all()
-        print(f"✅ Found {len(tours_data)} tours")
+        tours = result.scalars().all()
+        print(f"✅ Found {len(tours)} tours")
         
         response_tours = []
-        for tour, property_obj in tours_data:
+        for tour in tours:
+            # Try to get property data if agent_context exists
             property_data = None
-            if property_obj and property_obj.matterport_import_success:
-                property_data = PropertyData(
-                    matterport_name=property_obj.matterport_name,
-                    matterport_description=property_obj.matterport_description,
-                    address_line1=property_obj.address_line1,
-                    city=property_obj.city,
-                    state=property_obj.state,
-                    country=property_obj.country,
-                    total_area_floor=property_obj.total_area_floor,
-                    total_area_floor_indoor=property_obj.total_area_floor_indoor,
-                    dimension_units=property_obj.dimension_units or "metric",
-                    rooms_count=len(property_obj.rooms_data) if property_obj.rooms_data else 0,
-                    rooms_summary=", ".join([room.get("label", "Unknown") for room in (property_obj.rooms_data or [])[:5]])
-                )
+            if tour.agent_context and tour.matterport_data_imported:
+                # Parse agent context to extract property data
+                # This is a simplified approach - in production you might want to store this more structurally
+                lines = tour.agent_context.split('\n')
+                property_info = {}
+                for line in lines:
+                    if ': ' in line:
+                        key, value = line.split(': ', 1)
+                        key = key.strip('- ')
+                        if 'Name' in key:
+                            property_info['matterport_name'] = value
+                        elif 'Location' in key:
+                            parts = value.split(', ')
+                            if len(parts) >= 2:
+                                property_info['address_line1'] = parts[0]
+                                property_info['city'] = parts[1] if len(parts) > 1 else None
+                                property_info['country'] = parts[-1] if len(parts) > 2 else None
+                        elif 'Total Area' in key:
+                            try:
+                                property_info['total_area_floor'] = float(value.replace(' m²', ''))
+                            except:
+                                pass
+                
+                if property_info:
+                    property_data = PropertyData(**property_info)
             
             tour_response = TourResponse(
                 id=tour.id,
@@ -538,21 +570,117 @@ async def get_user_tours(db: AsyncSession = Depends(get_db), current_user: User 
                 matterport_data_imported=tour.matterport_data_imported or False,
                 matterport_share_url=tour.matterport_share_url,
                 property_data=property_data,
-                import_status="success" if tour.matterport_data_imported else "not_imported"
+                import_status="manual" if tour.agent_context and not tour.matterport_share_url else ("success" if tour.matterport_data_imported else "not_imported")
             )
             response_tours.append(tour_response)
         
-        print(f"✅ Returning {len(response_tours)} tours")
+        print(f"✅ Returning {len(response_tours)} tours successfully")
         return response_tours
         
     except Exception as e:
-        print(f"❌ Error in get_user_tours: {e}")
+        print(f"❌ ERROR in get_user_tours: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch tours: {str(e)}"
         )
+
+# NEW: Manual Property Data Upload Endpoint
+@app.put("/api/tours/{tour_id}/manual-data")
+async def update_tour_manual_data(
+    tour_id: int,
+    property_data: ManualPropertyUpload,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update tour with manual property data"""
+    
+    # Get tour and verify ownership
+    result = await db.execute(
+        select(Tour).where(Tour.id == tour_id, Tour.owner_id == current_user.id)
+    )
+    tour = result.scalar_one_or_none()
+    
+    if not tour:
+        raise HTTPException(status_code=404, detail="Tour not found or access denied")
+    
+    # Generate agent context from manual data
+    agent_context = f"""Property Information:
+- Name: {property_data.property_name}
+- Type: {property_data.property_type}
+- Location: {property_data.address_line1}, {property_data.city}, {property_data.country}
+- Total Area: {property_data.total_area} m²
+- Bedrooms: {property_data.bedrooms}
+- Bathrooms: {property_data.bathrooms}
+{f"- Year Built: {property_data.year_built}" if property_data.year_built else ""}
+{f"- Parking Spaces: {property_data.parking_spaces}" if property_data.parking_spaces else ""}
+{f"- Price: {property_data.currency} {property_data.price:,.0f}" if property_data.price else ""}
+{f"- Description: {property_data.description}" if property_data.description else ""}
+{f"- Rooms Detail: {property_data.rooms_detail}" if property_data.rooms_detail else ""}
+{f"- Amenities: {property_data.amenities}" if property_data.amenities else ""}"""
+    
+    # Update tour fields
+    tour.agent_context = agent_context.strip()
+    tour.matterport_data_imported = True  # Mark as having data
+    
+    # Store room data in a structured format
+    rooms = []
+    if property_data.bedrooms > 0:
+        for i in range(property_data.bedrooms):
+            rooms.append({
+                "label": f"Bedroom {i+1}",
+                "floor_id": 0,
+                "position": {"x": 0, "y": 0, "z": 0}
+            })
+    
+    if property_data.bathrooms > 0:
+        for i in range(int(property_data.bathrooms)):
+            rooms.append({
+                "label": f"Bathroom {i+1}",
+                "floor_id": 0,
+                "position": {"x": 0, "y": 0, "z": 0}
+            })
+    
+    # Add common rooms
+    rooms.extend([
+        {"label": "Living Room", "floor_id": 0, "position": {"x": 0, "y": 0, "z": 0}},
+        {"label": "Kitchen", "floor_id": 0, "position": {"x": 0, "y": 0, "z": 0}}
+    ])
+    
+    tour.room_data = rooms
+    
+    # Update the tour name if different
+    if property_data.property_name and property_data.property_name != tour.name:
+        tour.name = property_data.property_name
+    
+    await db.commit()
+    await db.refresh(tour)
+    
+    # Return updated tour in TourResponse format
+    return TourResponse(
+        id=tour.id,
+        name=tour.name,
+        matterport_model_id=tour.matterport_model_id,
+        agent_objective=tour.agent_objective,
+        is_active=tour.is_active,
+        created_at=tour.created_at,
+        matterport_data_imported=True,
+        matterport_share_url=tour.matterport_share_url,
+        property_data=PropertyData(
+            matterport_name=property_data.property_name,
+            matterport_description=property_data.description,
+            address_line1=property_data.address_line1,
+            city=property_data.city,
+            state=property_data.state,
+            country=property_data.country,
+            total_area_floor=property_data.total_area,
+            dimension_units="metric",
+            rooms_count=len(rooms),
+            rooms_summary=property_data.rooms_detail
+        ),
+        import_status="manual"
+    )
 
 @app.delete("/api/tours/{tour_id}")
 async def delete_tour(
@@ -611,6 +739,497 @@ async def get_tour_leads(tour_id: int, db: AsyncSession = Depends(get_db), curre
     result = await db.execute(select(Lead).where(Lead.tour_id == tour_id))
     leads = result.scalars().all()
     return leads
+
+@app.get("/api/tours/{tour_id}/context")
+async def get_tour_context(tour_id: str, db: AsyncSession = Depends(get_db)):
+    """Get real-time property context for widget"""
+    
+    # Get tour from database
+    result = await db.execute(select(Tour).where(Tour.id == int(tour_id)))
+    tour = result.scalar_one_or_none()
+    
+    if not tour:
+        raise HTTPException(404, "Tour not found")
+    
+    # If tour has manual data (agent_context), return that
+    if tour.agent_context:
+        # Parse the context to extract structured data
+        return {
+            "tour_id": tour_id,
+            "property_name": tour.name,
+            "total_area": 0,  # Could parse from agent_context if needed
+            "rooms": tour.room_data if tour.room_data else [],
+            "agent_context": tour.agent_context,
+            "matterport_model_id": tour.matterport_model_id,
+            "data_source": "manual"
+        }
+    
+    # Otherwise try to extract fresh data from Matterport
+    if MATTERPORT_AVAILABLE and tour.matterport_model_id:
+        try:
+            model_data = await matterport_service.extract_model_data(tour.matterport_model_id)
+            
+            # Return structured context
+            return {
+                "tour_id": tour_id,
+                "property_name": model_data.name,
+                "total_area": model_data.total_area_floor,
+                "rooms": [
+                    {"name": room.label, "area": room.area_floor} 
+                    for room in model_data.rooms
+                ],
+                "agent_context": matterport_service.format_for_agent_context(model_data),
+                "matterport_model_id": tour.matterport_model_id,
+                "data_source": "matterport"
+            }
+        except Exception as e:
+            print(f"Failed to get Matterport data: {e}")
+    
+    # Fallback response
+    return {
+        "tour_id": tour_id,
+        "property_name": tour.name,
+        "total_area": 0,
+        "rooms": [],
+        "agent_context": f"Property: {tour.name}",
+        "matterport_model_id": tour.matterport_model_id,
+        "data_source": "none"
+    }
+
+# ========================================
+# ANALYTICS ENDPOINTS
+# ========================================
+
+@app.get("/api/analytics/stats")
+async def get_analytics_stats(
+    start_date: str = None,
+    end_date: str = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get analytics statistics for the current user"""
+    try:
+        print(f"🔍 Analytics request for user: {current_user.id}")
+        
+        # Parse dates or use defaults
+        if start_date:
+            start = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+        else:
+            start = datetime.now() - timedelta(days=30)
+        
+        if end_date:
+            end = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+        else:
+            end = datetime.now()
+        
+        print(f"📊 Date range: {start} to {end}")
+        
+        # Get user's tours
+        tours_query = select(Tour).where(Tour.owner_id == current_user.id)
+        tours_result = await db.execute(tours_query)
+        user_tours = tours_result.scalars().all()
+        tour_ids = [tour.id for tour in user_tours]
+        
+        print(f"🏠 Found {len(user_tours)} tours for user")
+        
+        if not tour_ids:
+            print("⚠️ No tours found, returning empty analytics")
+            return {
+                "total_leads": 0,
+                "active_tours": 0,
+                "total_tours": 0,
+                "conversion_rate": 0.0,
+                "leads_by_month": [],
+                "top_tours": [],
+                "recent_activity": [],
+                "date_range": {
+                    "start": start.isoformat(),
+                    "end": end.isoformat()
+                }
+            }
+        
+        # Total leads
+        leads_query = select(func.count(Lead.id)).where(
+            Lead.tour_id.in_(tour_ids),
+            Lead.created_at >= start,
+            Lead.created_at <= end
+        )
+        total_leads_result = await db.execute(leads_query)
+        total_leads = total_leads_result.scalar() or 0
+        
+        print(f"📧 Total leads: {total_leads}")
+        
+        # Active tours
+        active_tours = len([tour for tour in user_tours if tour.is_active])
+        
+        # Leads by month
+        leads_by_month_query = select(
+            extract('month', Lead.created_at).label('month'),
+            extract('year', Lead.created_at).label('year'),
+            func.count(Lead.id).label('count')
+        ).where(
+            Lead.tour_id.in_(tour_ids),
+            Lead.created_at >= start,
+            Lead.created_at <= end
+        ).group_by(
+            extract('month', Lead.created_at),
+            extract('year', Lead.created_at)
+        ).order_by(
+            extract('year', Lead.created_at),
+            extract('month', Lead.created_at)
+        )
+        
+        leads_by_month_result = await db.execute(leads_by_month_query)
+        leads_by_month_data = leads_by_month_result.all()
+        
+        # Format leads by month
+        leads_by_month = []
+        month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        
+        for row in leads_by_month_data:
+            month_name = month_names[int(row.month) - 1] if row.month else 'Unknown'
+            leads_by_month.append({
+                "month": month_name,
+                "leads": int(row.count),
+                "tours": active_tours
+            })
+        
+        # Top performing tours
+        top_tours_query = select(
+            Tour.id,
+            Tour.name,
+            func.count(Lead.id).label('leads_count')
+        ).join(
+            Lead, Tour.id == Lead.tour_id, isouter=True
+        ).where(
+            Tour.owner_id == current_user.id
+        ).group_by(
+            Tour.id, Tour.name
+        ).order_by(
+            func.count(Lead.id).desc()
+        ).limit(5)
+        
+        top_tours_result = await db.execute(top_tours_query)
+        top_tours_data = top_tours_result.all()
+        
+        top_tours = [
+            {
+                "tour_name": row.name,
+                "leads_count": int(row.leads_count) if row.leads_count else 0
+            }
+            for row in top_tours_data
+        ]
+        
+        # Calculate conversion rate
+        conversion_rate = (total_leads / len(user_tours)) * 100 if user_tours else 0.0
+        
+        # Recent activity
+        recent_leads_query = select(Lead, Tour.name.label('tour_name')).join(
+            Tour, Lead.tour_id == Tour.id
+        ).where(
+            Lead.tour_id.in_(tour_ids)
+        ).order_by(
+            Lead.created_at.desc()
+        ).limit(10)
+        
+        recent_leads_result = await db.execute(recent_leads_query)
+        recent_leads_data = recent_leads_result.all()
+        
+        recent_activity = [
+            {
+                "type": "lead_captured",
+                "description": f"New lead from {row.tour_name}",
+                "email": row.Lead.email,
+                "created_at": row.Lead.created_at.isoformat(),
+                "tour_name": row.tour_name
+            }
+            for row in recent_leads_data
+        ]
+        
+        analytics_result = {
+            "total_leads": total_leads,
+            "active_tours": active_tours,
+            "total_tours": len(user_tours),
+            "conversion_rate": round(conversion_rate, 1),
+            "leads_by_month": leads_by_month,
+            "top_tours": top_tours,
+            "recent_activity": recent_activity,
+            "date_range": {
+                "start": start.isoformat(),
+                "end": end.isoformat()
+            }
+        }
+        
+        print(f"✅ Analytics calculated successfully: {analytics_result}")
+        return analytics_result
+        
+    except Exception as e:
+        print(f"❌ Analytics error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, f"Error calculating analytics: {str(e)}")
+
+# ========================================
+# TRANSCRIPTS ENDPOINT - ✅ FIXED: ADDED
+# ========================================
+
+@app.get("/api/transcripts")
+async def get_transcripts(
+    tour_id: Optional[int] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get conversation transcripts for the current user
+    Returns mock data for demonstration until full conversation system is implemented
+    """
+    try:
+        print(f"🔍 Transcripts request for user: {current_user.id}")
+        print(f"📋 Filters - tour_id: {tour_id}, start_date: {start_date}, end_date: {end_date}")
+        
+        # Get user's tours to validate access
+        tours_query = select(Tour).where(Tour.owner_id == current_user.id)
+        tours_result = await db.execute(tours_query)
+        user_tours = tours_result.scalars().all()
+        
+        print(f"🏠 Found {len(user_tours)} tours for user")
+        
+        if not user_tours:
+            print("⚠️ No tours found, returning empty transcripts")
+            return {
+                "transcripts": [],
+                "total_count": 0
+            }
+        
+        # Mock conversation data for demonstration
+        mock_transcripts = []
+        
+        # Generate 1-3 mock conversations per tour
+        conversation_id = 1
+        for tour in user_tours[:3]:  # Limit to first 3 tours
+            for i in range(1, 3):  # 1-2 conversations per tour
+                # Mock conversation data
+                started_at = (datetime.now() - timedelta(days=i*2)).isoformat()
+                ended_at = (datetime.now() - timedelta(days=i*2, hours=-1)).isoformat()
+                
+                mock_messages = [
+                    {
+                        "id": f"msg_{conversation_id}_1",
+                        "content": "¡Hola! Soy tu asesor virtual inmobiliario. ¿En qué puedo ayudarte?",
+                        "is_user": False,
+                        "message_type": "text",
+                        "timestamp": started_at,
+                        "room_context": {"name": "Living Room", "area": 25},
+                        "audio_duration": None,
+                        "confidence_score": None
+                    },
+                    {
+                        "id": f"msg_{conversation_id}_2", 
+                        "content": "Hola, me interesa conocer más sobre esta propiedad",
+                        "is_user": True,
+                        "message_type": "text",
+                        "timestamp": (datetime.fromisoformat(started_at.replace('Z', '+00:00')) + timedelta(minutes=1)).isoformat(),
+                        "room_context": {"name": "Living Room", "area": 25},
+                        "audio_duration": None,
+                        "confidence_score": None
+                    },
+                    {
+                        "id": f"msg_{conversation_id}_3",
+                        "content": "¡Perfecto! Esta propiedad tiene características muy interesantes. ¿Te gustaría que un agente se contacte contigo para más información?",
+                        "is_user": False,
+                        "message_type": "text", 
+                        "timestamp": (datetime.fromisoformat(started_at.replace('Z', '+00:00')) + timedelta(minutes=2)).isoformat(),
+                        "room_context": {"name": "Living Room", "area": 25},
+                        "audio_duration": None,
+                        "confidence_score": None
+                    },
+                    {
+                        "id": f"msg_{conversation_id}_4",
+                        "content": "Sí, mi email es prospecto@test.com",
+                        "is_user": True,
+                        "message_type": "text",
+                        "timestamp": (datetime.fromisoformat(started_at.replace('Z', '+00:00')) + timedelta(minutes=3)).isoformat(),
+                        "room_context": {"name": "Kitchen", "area": 12},
+                        "audio_duration": None,
+                        "confidence_score": None
+                    }
+                ]
+                
+                transcript = {
+                    "conversation_id": conversation_id,
+                    "tour_name": tour.name,
+                    "tour_id": tour.id,
+                    "visitor_id": f"visitor_{conversation_id}_{i}",
+                    "started_at": started_at,
+                    "ended_at": ended_at,
+                    "duration_seconds": 180 + (i * 60),  # 3-5 minutes
+                    "message_count": len(mock_messages),
+                    "lead_captured": i == 1,  # First conversation captured lead
+                    "visitor_email": "prospecto@test.com" if i == 1 else None,
+                    "visitor_phone": "+5491123456789" if i == 1 else None,
+                    "room_context": {"name": "Living Room", "area": 25},
+                    "messages": mock_messages
+                }
+                
+                # Apply filters
+                if tour_id and tour.id != tour_id:
+                    continue
+                    
+                if start_date:
+                    try:
+                        start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                        if datetime.fromisoformat(started_at.replace('Z', '+00:00')) < start_dt:
+                            continue
+                    except ValueError:
+                        pass
+                        
+                if end_date:
+                    try:
+                        end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00')) + timedelta(days=1)
+                        if datetime.fromisoformat(started_at.replace('Z', '+00:00')) > end_dt:
+                            continue
+                    except ValueError:
+                        pass
+                
+                mock_transcripts.append(transcript)
+                conversation_id += 1
+        
+        print(f"✅ Returning {len(mock_transcripts)} transcripts")
+        
+        return {
+            "transcripts": mock_transcripts,
+            "total_count": len(mock_transcripts)
+        }
+        
+    except Exception as e:
+        print(f"❌ Error in get_transcripts: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch transcripts: {str(e)}"
+        )
+
+# ========================================
+# CONVERSATION ENDPOINTS
+# ========================================
+
+@app.post("/api/conversations/start")
+async def start_conversation(
+    tour_id: str,
+    visitor_id: str = None,
+    room_context: dict = None,
+    user_agent: str = None,
+    ip_address: str = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Start a new conversation"""
+    try:
+        from uuid import UUID
+        from src.vocaria.db.models import Conversation
+        
+        # Validate tour_id is a valid UUID
+        try:
+            UUID(tour_id)
+        except ValueError:
+            raise HTTPException(400, "Invalid tour_id format")
+        
+        result = await db.execute(select(Tour).where(Tour.id == tour_id))
+        tour = result.scalar_one_or_none()
+        if not tour:
+            raise HTTPException(404, "Tour not found")
+        
+        conversation = Conversation(
+            tour_id=tour_id,
+            visitor_id=visitor_id or f"visitor_{int(time.time())}",
+            room_context=room_context,
+            user_agent=user_agent,
+            ip_address=ip_address,
+            started_at=datetime.utcnow()
+        )
+        
+        db.add(conversation)
+        await db.commit()
+        await db.refresh(conversation)
+        
+        return {
+            "conversation_id": str(conversation.id),
+            "visitor_id": conversation.visitor_id,
+            "started_at": conversation.started_at.isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(500, f"Error starting conversation: {str(e)}")
+
+@app.post("/api/conversations/{conversation_id}/messages")
+async def add_conversation_message(
+    conversation_id: str,
+    content: str,
+    is_user: bool,
+    message_type: str = "text",
+    room_context: dict = None,
+    audio_duration: float = None,
+    confidence_score: float = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Add a message to a conversation"""
+    try:
+        from uuid import UUID
+        from src.vocaria.db.models import Conversation, ConversationMessage
+        
+        # Validate conversation_id is a valid UUID
+        try:
+            UUID(conversation_id)
+        except ValueError:
+            raise HTTPException(400, "Invalid conversation_id format")
+        
+        result = await db.execute(select(Conversation).where(Conversation.id == conversation_id))
+        conversation = result.scalar_one_or_none()
+        if not conversation:
+            raise HTTPException(404, "Conversation not found")
+        
+        message = ConversationMessage(
+            conversation_id=conversation_id,
+            content=content,
+            is_user=is_user,
+            message_type=message_type,
+            room_context=room_context,
+            audio_duration=audio_duration,
+            confidence_score=confidence_score,
+            timestamp=datetime.utcnow()
+        )
+        
+        db.add(message)
+        conversation.message_count += 1
+        
+        # If this is a user message with contact info, update the conversation
+        if is_user and not conversation.lead_captured:
+            if "@" in content and "." in content:
+                conversation.visitor_email = content
+                conversation.lead_captured = True
+            elif any(char.isdigit() for char in content.replace(" ", "")) and len(content.replace(" ", "")) >= 8:
+                conversation.visitor_phone = content
+                conversation.lead_captured = True
+        
+        await db.commit()
+        await db.refresh(message)
+        
+        return {
+            "message_id": str(message.id),
+            "timestamp": message.timestamp.isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(500, f"Error adding message: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

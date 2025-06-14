@@ -1,5 +1,3 @@
-// Update frontend/src/features/analytics/AnalyticsPage.tsx
-
 import React, { useState, useEffect } from 'react';
 import { Card, Col, Row, DatePicker, Select, Button, Spin, Alert, Empty } from 'antd';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -28,11 +26,15 @@ const AnalyticsPage: React.FC = () => {
       const startDate = dateRange[0].toISOString();
       const endDate = dateRange[1].toISOString();
       
+      console.log('🔍 Loading analytics data...', { startDate, endDate });
       const data = await analyticsService.getAnalyticsStats(startDate, endDate);
+      console.log('✅ Analytics data loaded:', data);
+      
       setAnalyticsData(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error loading analytics data');
-      console.error('Analytics error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Error loading analytics data';
+      setError(errorMessage);
+      console.error('❌ Analytics error:', err);
     } finally {
       setLoading(false);
     }
@@ -76,7 +78,7 @@ const AnalyticsPage: React.FC = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <Spin size="large" />
+        <Spin size="large" tip="Loading analytics data..." />
       </div>
     );
   }
@@ -84,7 +86,7 @@ const AnalyticsPage: React.FC = () => {
   if (error) {
     return (
       <Alert
-        message="Error"
+        message="Analytics Error"
         description={error}
         type="error"
         showIcon
@@ -119,28 +121,28 @@ const AnalyticsPage: React.FC = () => {
 
   const statCards = [
     {
-      title: 'Total de Leads',
+      title: 'Total Leads',
       value: analyticsData.total_leads,
       icon: <Users className="text-green-500" size={24} />,
       color: 'bg-green-50',
       change: analyticsData.total_leads > 0 ? '+12%' : '0%'
     },
     {
-      title: 'Tours Activos',
+      title: 'Active Tours',
       value: analyticsData.active_tours,
       icon: <Home className="text-blue-500" size={24} />,
       color: 'bg-blue-50',
       change: analyticsData.active_tours > 0 ? 'Active' : 'None'
     },
     {
-      title: 'Tasa de Conversión',
+      title: 'Conversion Rate',
       value: `${analyticsData.conversion_rate}%`,
       icon: <TrendingUp className="text-purple-500" size={24} />,
       color: 'bg-purple-50',
       change: analyticsData.conversion_rate > 0 ? 'Good' : 'Low'
     },
     {
-      title: 'Interacción Promedio',
+      title: 'Avg Interaction',
       value: analyticsService.calculateAverageInteractionTime(),
       icon: <Clock className="text-amber-500" size={24} />,
       color: 'bg-amber-50',
@@ -151,7 +153,7 @@ const AnalyticsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-semibold text-gray-800">Analíticas</h1>
+        <h1 className="text-2xl font-semibold text-gray-800">Analytics</h1>
         <div className="flex items-center gap-4">
           <RangePicker
             value={dateRange}
@@ -163,7 +165,7 @@ const AnalyticsPage: React.FC = () => {
             style={{ width: 200 }}
             onChange={setSelectedTours}
           >
-            <Option value="all">Todos los tours</Option>
+            <Option value="all">All tours</Option>
             {analyticsData.top_tours.map((tour, index) => (
               <Option key={index} value={tour.tour_name}>
                 {tour.tour_name}
@@ -174,7 +176,7 @@ const AnalyticsPage: React.FC = () => {
             icon={<Download size={16} />}
             onClick={handleExport}
           >
-            Exportar
+            Export
           </Button>
         </div>
       </div>
@@ -208,10 +210,10 @@ const AnalyticsPage: React.FC = () => {
       <Row gutter={[16, 16]} className="mt-6">
         {/* Leads Chart */}
         <Col xs={24} lg={16}>
-          <Card title="Leads por Período" className="h-full">
+          <Card title="Leads Over Time" className="h-full">
             {chartData[0].month === 'No data' ? (
               <Empty 
-                description="No hay datos de leads para mostrar"
+                description="No lead data to display"
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
               />
             ) : (
@@ -232,7 +234,7 @@ const AnalyticsPage: React.FC = () => {
 
         {/* Lead Sources */}
         <Col xs={24} lg={8}>
-          <Card title="Fuente de Leads" className="h-full">
+          <Card title="Lead Sources" className="h-full">
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
@@ -271,7 +273,7 @@ const AnalyticsPage: React.FC = () => {
       </Row>
 
       {/* Top Tours Performance */}
-      <Card title="Rendimiento por Tour">
+      <Card title="Top Performing Tours">
         {analyticsData.top_tours.length > 0 ? (
           <div className="space-y-4">
             {analyticsData.top_tours.map((tour, index) => (
@@ -298,7 +300,7 @@ const AnalyticsPage: React.FC = () => {
           </div>
         ) : (
           <Empty 
-            description="No hay datos de tours para mostrar"
+            description="No tour data to display"
             image={Empty.PRESENTED_IMAGE_SIMPLE}
           />
         )}
